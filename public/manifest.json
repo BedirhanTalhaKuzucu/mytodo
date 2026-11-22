@@ -1,0 +1,27 @@
+{
+  "name": "Denge — Kişisel Not & Görev",
+  "short_name": "Denge",
+  "description": "İş ve özel hayatı tek yerde ama birbirine karıştırmadan organize eden kişisel Not ve Görev uygulaması.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF9F6",
+  "theme_color": "#FAF9F6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "shareTitle",
+      "text": "shareText",
+      "url": "shareUrl"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CalendarDays, FileText, Inbox, Plus, Sun } from "lucide-react";
+import { CalendarDays, FileText, Inbox, Plus, Sun, Wallet } from "lucide-react";
 import type { NavView } from "@/types";
 
 interface MobileNavProps {
@@ -14,6 +14,7 @@ interface MobileNavProps {
     notes: number;
   };
   onOpenQuickAdd: () => void;
+  onOpenBudgetApp: () => void;
 }
 
 const MOBILE_ITEMS: {
@@ -32,6 +33,7 @@ export function MobileNav({
   onSelectView,
   counts,
   onOpenQuickAdd,
+  onOpenBudgetApp,
 }: MobileNavProps) {
   return (
     <>
@@ -50,11 +52,11 @@ export function MobileNav({
         aria-label="Mobil Navigasyon"
         className="md:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[#E7E5E4] bg-white/95 backdrop-blur-md pb-safe"
       >
-        <div className="grid grid-cols-4 h-16">
+        <div className="grid grid-cols-5 h-16">
           {MOBILE_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = activeView === item.id;
-            const count = counts[item.id];
+            const count = counts[item.id] ?? 0;
             return (
               <button
                 key={item.id}
@@ -76,6 +78,14 @@ export function MobileNav({
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={onOpenBudgetApp}
+            className="flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-[#78716C] hover:text-[#4F46E5]"
+          >
+            <Wallet className="h-5 w-5" />
+            <span>Bütçe</span>
+          </button>
         </div>
       </nav>
     </>

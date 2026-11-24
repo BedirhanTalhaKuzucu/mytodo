@@ -7,6 +7,7 @@ import { formatSeconds } from "@/lib/utils";
 
 interface TopBarProps {
   spaceFilter: SpaceFilter;
+  hideSpaceFilter?: boolean;
   onChangeSpace: (space: SpaceFilter) => void;
   onOpenCommandPalette: () => void;
   pomodoro: PomodoroState;
@@ -23,6 +24,7 @@ const SPACE_OPTIONS: { value: SpaceFilter; label: string; dotColor?: string }[] 
 
 export function TopBar({
   spaceFilter,
+  hideSpaceFilter = false,
   onChangeSpace,
   onOpenCommandPalette,
   pomodoro,
@@ -41,39 +43,43 @@ export function TopBar({
           </div>
         </div>
         <span className="hidden sm:inline font-semibold tracking-tight text-[#1C1917]">
-          Denge
+          {hideSpaceFilter ? "Denge Bütçe" : "Denge"}
         </span>
       </div>
 
       {/* Center: Segmented Space Control */}
-      <div
-        role="tablist"
-        aria-label="Alan Filtresi"
-        className="flex items-center rounded-xl border border-[#E7E5E4] bg-stone-100/80 p-1"
-      >
-        {SPACE_OPTIONS.map((opt) => {
-          const active = spaceFilter === opt.value;
-          return (
-            <button
-              key={opt.value}
-              role="tab"
-              aria-selected={active}
-              type="button"
-              onClick={() => onChangeSpace(opt.value)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs sm:text-sm font-medium transition-all ${
-                active
-                  ? "bg-white text-[#1C1917] shadow-xs"
-                  : "text-[#78716C] hover:text-[#1C1917]"
-              }`}
-            >
-              {opt.dotColor && (
-                <span className={`h-2 w-2 rounded-full ${opt.dotColor}`} />
-              )}
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
+      {!hideSpaceFilter ? (
+        <div
+          role="tablist"
+          aria-label="Alan Filtresi"
+          className="flex items-center rounded-xl border border-[#E7E5E4] bg-stone-100/80 p-1"
+        >
+          {SPACE_OPTIONS.map((opt) => {
+            const active = spaceFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                role="tab"
+                aria-selected={active}
+                type="button"
+                onClick={() => onChangeSpace(opt.value)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs sm:text-sm font-medium transition-all ${
+                  active
+                    ? "bg-white text-[#1C1917] shadow-xs"
+                    : "text-[#78716C] hover:text-[#1C1917]"
+                }`}
+              >
+                {opt.dotColor && (
+                  <span className={`h-2 w-2 rounded-full ${opt.dotColor}`} />
+                )}
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div />
+      )}
 
       {/* Right: Mini Pomodoro + Ctrl+K Trigger */}
       <div className="flex items-center gap-2">

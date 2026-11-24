@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppData } from "@/hooks/useAppData";
 import { usePomodoro } from "@/hooks/usePomodoro";
 import { getTodayISO, isOverdue, isToday } from "@/lib/utils";
@@ -16,6 +16,7 @@ import { TodayView } from "./views/TodayView";
 import { InboxView } from "./views/InboxView";
 import { WeeklyView } from "./views/WeeklyView";
 import { NotesView } from "./views/NotesView";
+import { BudgetModule } from "@/modules/budget/components/BudgetModule";
 
 export function AppShell() {
   const {
@@ -45,6 +46,25 @@ export function AppShell() {
     clearActiveTask,
   } = usePomodoro(recordPomodoroSession);
 
+  const [appMode, setAppModeState] = useState<"todo" | "budget">(() => {
+    if (typeof window === "undefined") return "todo";
+    try {
+      const saved = window.localStorage.getItem("denge_app_mode_v1");
+      if (saved === "budget" || saved === "todo") return saved;
+    } catch {
+      // ignore storage errors
+    }
+    return "todo";
+  });
+
+  const setAppMode = useCallback((mode: "todo" | "budget") => {
+    setAppModeState(mode);
+    try {
+      window.localStorage.setItem("denge_app_mode_v1", mode);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
   const [spaceFilter, setSpaceFilter] = useState<SpaceFilter>("all");
   const [activeView, setActiveView] = useState<NavView>("today");
   const [selected, setSelected] = useState<SelectedItem>(null);
@@ -186,6 +206,7 @@ export function AppShell() {
     <div className="flex h-dvh flex-col overflow-hidden bg-[#FAF9F6] text-[#1C1917]">
       <TopBar
         spaceFilter={spaceFilter}
+        hideSpaceFilter={appMode === "budget"}
         onChangeSpace={setSpaceFilter}
         onOpenCommandPalette={() => setIsCommandOpen(true)}
         pomodoro={pomodoro}
@@ -194,116 +215,124 @@ export function AppShell() {
         onOpenPomodoroModal={() => setIsPomodoroOpen(true)}
       />
 
-      <div className="flex flex-1 min-h-0">
-        {/* PC Left Sidebar */}
-        <Sidebar
+      {appMode === "budget" ? (
+        <BudgetModule onExitBudget={() => setAppMode("todo")} />
+      ) : (
+        <div className="flex flex-1 min-h-0">
+          {/* PC Left Sidebar */}
+          <Sidebar
+            activeView={activeView}
+            onSelectView={setActiveView}
+            counts={counts}
+            onQuickAddTask={() => setQuickAddState({ open: true, mode: "task" })}
+            onQuickAddNote={() => setQuickAddState({ open: true, mode: "note" })}
+            pomodoro={pomodoro}
+            onOpenPomodoroModal={() => setIsPomodoroOpen(true)}
+            onOpenBudgetApp={() => setAppMode("budget")}
+          />
+
+          {/* Center Content Area */}
+          <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 md:px-7 md:py-6 md:pb-8">
+            {activeView === "today" && (
+              <TodayView
+                tasks={tasks}
+                notes={notes}
+                spaceFilter={spaceFilter}
+                selectedId={selected?.id ?? null}
+                pomodoroTaskId={pomodoro.activeTaskId}
+                onToggleTask={toggleTaskStatus}
+                onSelectTask={(id) => setSelected({ type: "task", id })}
+                onSelectNote={(id) => setSelected({ type: "note", id })}
+                onFocusPomodoro={startFocusOnTask}
+                onCreateQuickTask={(title, space, dueDate) =>
+                  createTask({ title, space, dueDate })
+                }
+              />
+            )}
+
+            {activeView === "inbox" && (
+              <InboxView
+                tasks={tasks}
+                notes={notes}
+                spaceFilter={spaceFilter}
+                selectedId={selected?.id ?? null}
+                onToggleTask={toggleTaskStatus}
+                onSelectTask={(id) => setSelected({ type: "task", id })}
+                onSelectNote={(id) => setSelected({ type: "note", id })}
+                onUpdateTask={updateTask}
+                onUpdateNote={updateNote}
+                onCreateInboxTask={(title) =>
+                  createTask({ title, space: null, dueDate: null })
+                }
+              />
+            )}
+
+            {activeView === "weekly" && (
+              <WeeklyView
+                tasks={tasks}
+                spaceFilter={spaceFilter}
+                selectedId={selected?.id ?? null}
+                onToggleTask={toggleTaskStatus}
+                onSelectTask={(id) => setSelected({ type: "task", id })}
+                onUpdateTask={updateTask}
+                onCreateTaskForDay={(title, space, dueDate) =>
+                  createTask({ title, space, dueDate })
+                }
+              />
+            )}
+
+            {activeView === "notes" && (
+              <NotesView
+                notes={notes}
+                spaceFilter={spaceFilter}
+                selectedId={selected?.id ?? null}
+                onSelectNote={(id) => setSelected({ type: "note", id })}
+                onTogglePin={(id, currentPinned) =>
+                  updateNote(id, { isPinned: !currentPinned })
+                }
+                onCreateNote={() => {
+                  const created = createNote({
+                    title: "Yeni Not",
+                    content: "",
+                    space: defaultSpaceForNew,
+                  });
+                  setSelected({ type: "note", id: created.id });
+                }}
+              />
+            )}
+          </main>
+
+          {/* PC Slide-Over / Mobile Bottom-Sheet Detail Drawer */}
+          <DetailDrawer
+            selected={selected}
+            tasks={tasks}
+            notes={notes}
+            pomodoro={pomodoro}
+            onClose={() => setSelected(null)}
+            onSelect={setSelected}
+            onUpdateTask={updateTask}
+            onToggleTask={toggleTaskStatus}
+            onDeleteTask={deleteTask}
+            onUpdateNote={updateNote}
+            onDeleteNote={deleteNote}
+            onLinkTaskNote={linkTaskAndNote}
+            onUnlinkTaskNote={unlinkTaskAndNote}
+            onCreateTaskFromNote={handleCreateTaskFromNote}
+            onFocusPomodoro={startFocusOnTask}
+          />
+        </div>
+      )}
+
+      {/* Mobile Bottom Nav + FAB (Todo mode only) */}
+      {appMode === "todo" && (
+        <MobileNav
           activeView={activeView}
           onSelectView={setActiveView}
           counts={counts}
-          onQuickAddTask={() => setQuickAddState({ open: true, mode: "task" })}
-          onQuickAddNote={() => setQuickAddState({ open: true, mode: "note" })}
-          pomodoro={pomodoro}
-          onOpenPomodoroModal={() => setIsPomodoroOpen(true)}
+          onOpenQuickAdd={() => setQuickAddState({ open: true, mode: "task" })}
+          onOpenBudgetApp={() => setAppMode("budget")}
         />
-
-        {/* Center Content Area */}
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 md:px-7 md:py-6 md:pb-8">
-          {activeView === "today" && (
-            <TodayView
-              tasks={tasks}
-              notes={notes}
-              spaceFilter={spaceFilter}
-              selectedId={selected?.id ?? null}
-              pomodoroTaskId={pomodoro.activeTaskId}
-              onToggleTask={toggleTaskStatus}
-              onSelectTask={(id) => setSelected({ type: "task", id })}
-              onSelectNote={(id) => setSelected({ type: "note", id })}
-              onFocusPomodoro={startFocusOnTask}
-              onCreateQuickTask={(title, space, dueDate) =>
-                createTask({ title, space, dueDate })
-              }
-            />
-          )}
-
-          {activeView === "inbox" && (
-            <InboxView
-              tasks={tasks}
-              notes={notes}
-              spaceFilter={spaceFilter}
-              selectedId={selected?.id ?? null}
-              onToggleTask={toggleTaskStatus}
-              onSelectTask={(id) => setSelected({ type: "task", id })}
-              onSelectNote={(id) => setSelected({ type: "note", id })}
-              onUpdateTask={updateTask}
-              onUpdateNote={updateNote}
-              onCreateInboxTask={(title) =>
-                createTask({ title, space: null, dueDate: null })
-              }
-            />
-          )}
-
-          {activeView === "weekly" && (
-            <WeeklyView
-              tasks={tasks}
-              spaceFilter={spaceFilter}
-              selectedId={selected?.id ?? null}
-              onToggleTask={toggleTaskStatus}
-              onSelectTask={(id) => setSelected({ type: "task", id })}
-              onUpdateTask={updateTask}
-              onCreateTaskForDay={(title, space, dueDate) =>
-                createTask({ title, space, dueDate })
-              }
-            />
-          )}
-
-          {activeView === "notes" && (
-            <NotesView
-              notes={notes}
-              spaceFilter={spaceFilter}
-              selectedId={selected?.id ?? null}
-              onSelectNote={(id) => setSelected({ type: "note", id })}
-              onTogglePin={(id, currentPinned) =>
-                updateNote(id, { isPinned: !currentPinned })
-              }
-              onCreateNote={() => {
-                const created = createNote({
-                  title: "Yeni Not",
-                  content: "",
-                  space: defaultSpaceForNew,
-                });
-                setSelected({ type: "note", id: created.id });
-              }}
-            />
-          )}
-        </main>
-
-        {/* PC Slide-Over / Mobile Bottom-Sheet Detail Drawer */}
-        <DetailDrawer
-          selected={selected}
-          tasks={tasks}
-          notes={notes}
-          pomodoro={pomodoro}
-          onClose={() => setSelected(null)}
-          onSelect={setSelected}
-          onUpdateTask={updateTask}
-          onToggleTask={toggleTaskStatus}
-          onDeleteTask={deleteTask}
-          onUpdateNote={updateNote}
-          onDeleteNote={deleteNote}
-          onLinkTaskNote={linkTaskAndNote}
-          onUnlinkTaskNote={unlinkTaskAndNote}
-          onCreateTaskFromNote={handleCreateTaskFromNote}
-          onFocusPomodoro={startFocusOnTask}
-        />
-      </div>
-
-      {/* Mobile Bottom Nav + FAB */}
-      <MobileNav
-        activeView={activeView}
-        onSelectView={setActiveView}
-        counts={counts}
-        onOpenQuickAdd={() => setQuickAddState({ open: true, mode: "task" })}
-      />
+      )}
 
       {/* Ctrl+K Command Palette */}
       {isCommandOpen && (

@@ -142,8 +142,57 @@ Create a one-off Node/TypeScript script (using `@supabase/supabase-js` with `SUP
 
 ---
 
-## 4. Swapping the Storage Adapter in Code
+## 4. Swapping the Storage Adapter in Code (Budget Module)
 
 1. Implement `SupabaseBudgetStorageAdapter implements BudgetStorageAdapter` in `src/modules/budget/storage/supabase-adapter.ts` matching `src/modules/budget/storage/adapter.ts`.
 2. Export it from `src/modules/budget/storage/index.ts` (e.g., switch based on `NEXT_PUBLIC_SUPABASE_URL` env var).
 3. Keep `src/modules/budget/` isolated from `src/types`, `src/hooks`, and `src/lib/storage`.
+
+---
+
+## 5. Denge Todo & Notes App (Main App) Supabase Migration
+
+The main Todo & Notes app (`src/types/index.ts`, `src/lib/storage/adapter.ts`) also uses a clean `StorageAdapter` repository pattern (`LocalStorageAdapter` in `src/lib/storage/local-adapter.ts`).
+
+### PostgreSQL Schema for Todo & Notes
+
+```sql
+-- 1. Tasks
+create table if not exists public.tasks (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  title text not null,
+  notes text not null default '',
+  space text check (space in ('work', 'personal')),
+  status text not null default 'todo' check (status in ('todo', 'done')),
+  priority text not null default 'medium' check (priority in ('high', 'medium', 'low')),
+  due_date date,
+  recurrence text not null default 'none' check (recurrence in ('none', 'daily', 'weekly', 'monthly')),
+  subtasks jsonb not null default '[]'::jsonb,
+  linked_note_ids text[] not null default '{}',
+  tags text[] not null default '{}',
+  pomodoro_sessions integer not null default 0,
+  pomodoro_minutes integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- 2. Notes
+create table if not exists public.notes (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  title text not null,
+  content text not null default '',
+  space text check (space in ('work', 'personal')),
+  is_pinned boolean not null default false,
+  linked_task_ids text[] not null default '{}',
+  tags text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+### Swapping the Main App Adapter
+1. Implement `SupabaseStorageAdapter implements StorageAdapter` in `src/lib/storage/supabase-adapter.ts` matching `src/lib/storage/adapter.ts`.
+2. Switch `storageAdapter` export in `src/lib/storage/index.ts` when `NEXT_PUBLIC_SUPABASE_URL` is configured.
+

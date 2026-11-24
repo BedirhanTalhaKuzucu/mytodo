@@ -37,7 +37,7 @@ export function MonthClosureModal({
   onSaveClosure,
   onReopenMonth,
 }: MonthClosureModalProps) {
-  const absNet = Math.abs(netBalance);
+  const absNet = Math.round(Math.abs(netBalance) * 100) / 100;
   const isSurplus = netBalance >= 0;
   const nextMonthLabel = formatMonthLabel(shiftMonthKey(monthKey, 1));
 
@@ -287,6 +287,21 @@ export function MonthClosureModal({
               </div>
             )}
           </>
+        )}
+
+        {totalSavings > 0 && savingsAction === "to_total" && isSurplus && (
+          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2 text-xs text-emerald-900">
+            <span>Totale toplam yansıyacak:</span>
+            <span className="font-mono font-bold tabular-nums">
+              {formatCurrency(
+                (Number(toTotal.replace(",", ".")) || 0) + totalSavings
+              )}{" "}
+              <span className="font-normal text-emerald-700">
+                ({formatCurrency(Number(toTotal.replace(",", ".")) || 0)} net +{" "}
+                {formatCurrency(totalSavings)} tasarruf)
+              </span>
+            </span>
+          </div>
         )}
 
         {/* Footer Actions */}

@@ -519,14 +519,32 @@ export function useBudgetData() {
         let monthSavingsTotal = 0;
         let savingsAccountId = input.accountId;
 
+        const hasPendingSavings = prev.some(
+          (tx) =>
+            (tx.scope ?? "monthly") === "monthly" &&
+            tx.type === "income" &&
+            tx.date.startsWith(input.monthKey) &&
+            tx.savingsAmount &&
+            tx.savingsAmount > 0
+        );
+
         const base = prev
-          .filter((tx) => tx.closureSourceMonth !== input.monthKey)
+          .filter((tx) => {
+            if (tx.closureSourceMonth !== input.monthKey) return true;
+            // Keep already-converted overview savings tx when re-editing a closed month
+            if (tx.scope === "overview" && !hasPendingSavings) return true;
+            return false;
+          })
           .map((tx) => {
+            const isTargetMonthRegular =
+              (tx.scope ?? "monthly") === "monthly" &&
+              tx.date.startsWith(input.monthKey) &&
+              !tx.closureSourceMonth;
+
             if (
               input.savingsAction &&
-              (tx.scope ?? "monthly") === "monthly" &&
+              isTargetMonthRegular &&
               tx.type === "income" &&
-              tx.date.startsWith(input.monthKey) &&
               tx.savingsAmount &&
               tx.savingsAmount > 0
             ) {
@@ -537,15 +555,26 @@ export function useBudgetData() {
                   ...tx,
                   amount: Math.max(0, tx.amount - tx.savingsAmount),
                   savingsAmount: undefined,
+                  excludeFromOverviewBalance: false,
                   updatedAt: now,
                 };
               }
               return {
                 ...tx,
                 savingsAmount: undefined,
+                excludeFromOverviewBalance: false,
                 updatedAt: now,
               };
             }
+
+            if (isTargetMonthRegular && tx.excludeFromOverviewBalance) {
+              return {
+                ...tx,
+                excludeFromOverviewBalance: false,
+                updatedAt: now,
+              };
+            }
+
             return tx;
           });
 
@@ -885,14 +914,13 @@ export function useBudgetData() {
             note: tx.note || "Aylık gelirden ayrılan tasarruf payı",
             savingsAmount: undefined,
           });
-          if (txAsset === "money") {
-            overviewIncome += tx.savingsAmount;
-          }
-          if (
-            affectsOverviewBalance &&
-            allTimeAccountBalances[tx.accountId] !== undefined
-          ) {
-            allTimeAccountBalances[tx.accountId] += tx.savingsAmount;
+          if (affectsOverviewBalance) {
+            if (txAsset === "money") {
+              overviewIncome += tx.savingsAmount;
+            }
+            if (allTimeAccountBalances[tx.accountId] !== undefined) {
+              allTimeAccountBalances[tx.accountId] += tx.savingsAmount;
+            }
           }
         }
       } else if (tx.type === "expense") {

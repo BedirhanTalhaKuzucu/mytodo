@@ -11,7 +11,6 @@ import {
   Landmark,
   Layers,
   Lock,
-  PiggyBank,
   Plus,
   StickyNote,
   TrendingUp,
@@ -38,7 +37,6 @@ interface BudgetOverviewPageProps {
   allTimeAccountBalances: Record<string, number>;
   totalsByAssetType: Record<AssetType, number>;
   presentAssetTypes: AssetType[];
-  totalVaultReserve: number;
   monthsOverview: {
     monthKey: string;
     income: number;
@@ -73,7 +71,6 @@ export function BudgetOverviewPage({
   allTimeAccountBalances,
   totalsByAssetType,
   presentAssetTypes,
-  totalVaultReserve,
   monthsOverview,
   overviewTransactions,
   monthNotes,
@@ -120,8 +117,8 @@ export function BudgetOverviewPage({
         </div>
       </div>
 
-      {/* Asset-Type Grouped Total Cards + Vault Reserve */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Asset-Type Grouped Total Cards */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {presentAssetTypes.map((assetType) => {
           const total = totalsByAssetType[assetType] ?? 0;
           const count = accounts.filter(
@@ -150,24 +147,6 @@ export function BudgetOverviewPage({
             </div>
           );
         })}
-
-        <div className="rounded-2xl border border-[#E7E5E4] bg-white p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-xs font-medium text-[#78716C]">
-            <span>Kapanış Kasası (Birikim)</span>
-            <PiggyBank className="h-4 w-4 text-[#059669]" />
-          </div>
-          <p
-            className={`mt-2 font-mono text-2xl font-bold tabular-nums ${
-              totalVaultReserve >= 0 ? "text-[#059669]" : "text-rose-600"
-            }`}
-          >
-            {totalVaultReserve >= 0 ? "+" : ""}
-            {formatCurrency(totalVaultReserve)}
-          </p>
-          <p className="mt-1 text-[11px] text-[#78716C]">
-            Ay kapanışlarından totale işlenen
-          </p>
-        </div>
       </section>
 
       {/* Per-Account Total Balances */}
@@ -261,27 +240,39 @@ export function BudgetOverviewPage({
                 <th className="px-3 py-2.5 text-right">Net Fark</th>
                 <th className="px-3 py-2.5">Kapanış Durumu</th>
                 <th className="px-3 py-2.5 text-right">Totale İşlenen</th>
-                <th className="px-3 py-2.5 text-right">Sonraki Aya Devir</th>
                 <th className="py-2.5 pl-3 pr-4 text-right">İşlem</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E7E5E4] text-sm">
               {monthsOverview.map((m, rowIdx) => {
                 const c = m.closure;
-                const signedTotal = c
-                  ? (c.netAtClose >= 0 ? 1 : -1) * c.toTotalAmount
-                  : 0;
-                const signedCarry = c
-                  ? (c.netAtClose >= 0 ? 1 : -1) * c.carryOverAmount
-                  : 0;
                 const monthOv = overviewByMonth[m.monthKey] ?? [];
                 const isExpanded = Boolean(expandedMonths[m.monthKey]);
+                const ovMoneyNet = monthOv.reduce((sum, tx) => {
+                  const acc = accounts.find((a) => a.id === tx.accountId);
+                  if ((acc?.assetType ?? "money") !== "money") return sum;
+                  return tx.type === "income"
+                    ? sum + tx.amount
+                    : tx.type === "expense"
+                    ? sum - tx.amount
+                    : sum;
+                }, 0);
+                const combinedTotal = m.net + ovMoneyNet;
+
+                const isCurrentOpenExcluded =
+                  !c && !includedOpenMonths.includes(m.monthKey);
+                const isCurrentOpenIncluded =
+                  !c && includedOpenMonths.includes(m.monthKey);
 
                 return (
                   <React.Fragment key={m.monthKey}>
                     <tr
-                      className={`transition-colors hover:bg-amber-50/40 ${
-                        rowIdx % 2 === 1 ? "bg-stone-50/75" : "bg-white"
+                      className={`transition-all ${
+                        isCurrentOpenExcluded
+                          ? "bg-stone-100/80 opacity-65 hover:opacity-100 hover:bg-stone-100"
+                          : rowIdx % 2 === 1
+                          ? "bg-stone-50/75 hover:bg-amber-50/40"
+                          : "bg-white hover:bg-amber-50/40"
                       }`}
                     >
                       <td className="py-3 pl-4 pr-3 font-medium capitalize text-[#1C1917]">
@@ -338,34 +329,48 @@ export function BudgetOverviewPage({
                               onClick={() =>
                                 onToggleIncludeOpenMonth(m.monthKey)
                               }
-                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
-                                includedOpenMonths.includes(m.monthKey)
-                                  ? "border-indigo-300 bg-indigo-50 text-[#4F46E5] hover:bg-indigo-100"
-                                  : "border-stone-200 bg-stone-50 text-[#78716C] hover:bg-stone-100"
+                              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+                                isCurrentOpenIncluded
+                                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                                  : "border-dashed border-stone-400 bg-white text-stone-600 hover:border-indigo-400 hover:text-[#4F46E5]"
                               }`}
                               title="Bu açık ayın aylık netinin genel kasa bakiyesine dahil edilip edilmeyeceğini seç"
                             >
                               <Calculator className="h-3 w-3" />
-                              {includedOpenMonths.includes(m.monthKey)
+                              {isCurrentOpenIncluded
                                 ? "Hesaba Dahil"
-                                : "Hesaba Dahil Değil"}
+                                : "Hesap Dışı • Dahil Et"}
                             </button>
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right font-mono text-xs text-[#78716C] tabular-nums">
-                        {c
-                          ? `${signedTotal >= 0 ? "+" : ""}${formatCurrency(
-                              signedTotal
-                            )}`
-                          : "—"}
-                      </td>
-                      <td className="px-3 py-3 text-right font-mono text-xs text-[#78716C] tabular-nums">
-                        {c
-                          ? `${signedCarry >= 0 ? "+" : ""}${formatCurrency(
-                              signedCarry
-                            )}`
-                          : "—"}
+                      <td
+                        className={`px-3 py-3 text-right font-mono text-xs font-bold tabular-nums ${
+                          isCurrentOpenExcluded
+                            ? "text-stone-400"
+                            : combinedTotal >= 0
+                            ? "text-[#059669]"
+                            : "text-rose-600"
+                        }`}
+                      >
+                        <div className={isCurrentOpenExcluded ? "line-through" : ""}>
+                          {combinedTotal >= 0 ? "+" : ""}
+                          {formatCurrency(combinedTotal)}
+                        </div>
+                        {isCurrentOpenExcluded ? (
+                          <div className="text-[10px] font-normal text-stone-500">
+                            Genel toplama dahil değil
+                          </div>
+                        ) : (
+                          ovMoneyNet !== 0 && (
+                            <div className="text-[10px] font-normal text-[#78716C]">
+                              Ay: {m.net >= 0 ? "+" : ""}
+                              {formatCurrency(m.net)} • Genel:{" "}
+                              {ovMoneyNet >= 0 ? "+" : ""}
+                              {formatCurrency(ovMoneyNet)}
+                            </div>
+                          )
+                        )}
                       </td>
                       <td className="py-3 pl-3 pr-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
@@ -451,7 +456,13 @@ export function BudgetOverviewPage({
                                       <span className="truncate font-medium text-[#1C1917]">
                                         {tx.title}
                                       </span>
-                                      <span className="inline-flex shrink-0 rounded-md bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-[#78716C]">
+                                      <span
+                                        className={`inline-flex shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                                          tx.id.startsWith("savings-")
+                                            ? "border border-amber-200/80 bg-amber-50 text-amber-800"
+                                            : "bg-stone-100 text-[#78716C]"
+                                        }`}
+                                      >
                                         {tx.category}
                                       </span>
                                     </div>
@@ -479,7 +490,7 @@ export function BudgetOverviewPage({
 
                       return (
                         <tr className="bg-amber-50/35">
-                          <td colSpan={8} className="px-4 py-3 space-y-2.5">
+                          <td colSpan={7} className="px-4 py-3 space-y-2.5">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {/* Genel Gelirler */}
                               <div className="rounded-xl border border-emerald-200/80 bg-white overflow-hidden">

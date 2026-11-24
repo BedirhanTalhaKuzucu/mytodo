@@ -30,6 +30,7 @@ export interface BudgetTransaction {
   savingsAmount?: number;
   excludeFromOverviewBalance?: boolean;
   recurringRuleId?: string;
+  installmentLabel?: string;
   closureSourceMonth?: string; // YYYY-MM if auto-created by closing previous month
   createdAt: string;
   updatedAt: string;
@@ -54,6 +55,9 @@ export interface RecurringExpenseRule {
   dayOfMonth: number; // 1 - 28 (safe for all months)
   isActive: boolean;
   startMonth: string; // YYYY-MM
+  isInstallment?: boolean;
+  startInstallment?: number;
+  totalInstallments?: number;
   createdAt: string;
 }
 

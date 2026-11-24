@@ -4,7 +4,7 @@ This guide explains how to migrate the **Denge Budget** module from `localStorag
 
 ## 1. Source of Truth JSON Snapshot
 All initial Notion-synced data is stored in:
-- `src/modules/budget/storage/notion-backup.json` (**4 accounts**, **1,599 transactions**)
+- `src/modules/budget/storage/notion-backup.json` (**4 accounts**, **1,599 transactions**, **13 recurring rules**, **22 closed past months**)
 
 ### Critical Accounting Flags in `transactions`
 Do **NOT** drop these fields during migration — they prevent double-counting:
@@ -56,6 +56,7 @@ create table if not exists public.budget_transactions (
   savings_amount numeric(14, 2),
   exclude_from_overview_balance boolean not null default false,
   recurring_rule_id text,
+  installment_label text,
   closure_source_month text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -76,6 +77,9 @@ create table if not exists public.budget_recurring_rules (
   day_of_month integer not null check (day_of_month between 1 and 28),
   is_active boolean not null default true,
   start_month text not null,
+  is_installment boolean not null default false,
+  start_installment integer,
+  total_installments integer,
   created_at timestamptz not null default now()
 );
 
@@ -125,8 +129,10 @@ Create a one-off Node/TypeScript script (using `@supabase/supabase-js` with `SUP
    - `savingsAmount` -> `savings_amount`
    - `excludeFromOverviewBalance` -> `exclude_from_overview_balance`
    - `recurringRuleId` -> `recurring_rule_id`
+   - `installmentLabel` -> `installment_label`
    - `closureSourceMonth` -> `closure_source_month`
-4. Verify post-import balances in SQL:
+4. Upsert `recurringRules` into `budget_recurring_rules` (mapping `isInstallment` -> `is_installment`, `startInstallment` -> `start_installment`, `totalInstallments` -> `total_installments`) and `closures` into `budget_closures` (`2025-01` .. `2026-10`).
+5. Verify post-import balances in SQL:
    ```sql
    select
      account_id,

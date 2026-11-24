@@ -26,6 +26,8 @@ interface BudgetTableProps {
   transactions: BudgetTransaction[];
   accounts: BudgetAccount[];
   categories: readonly string[];
+  pendingRecurringCount?: number;
+  onApplyRecurringRules?: () => void;
   onEdit: (tx: BudgetTransaction) => void;
   onAdd: () => void;
 }
@@ -55,6 +57,8 @@ export function BudgetTable({
   transactions,
   accounts,
   categories,
+  pendingRecurringCount = 0,
+  onApplyRecurringRules,
   onEdit,
   onAdd,
 }: BudgetTableProps) {
@@ -221,6 +225,17 @@ export function BudgetTable({
               {isExpense ? "-" : "+"}
               {formatCurrency(filteredTotal)}
             </span>
+            {pendingRecurringCount > 0 && onApplyRecurringRules && (
+              <button
+                type="button"
+                onClick={onApplyRecurringRules}
+                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-[#4F46E5] hover:bg-indigo-100 transition-colors cursor-pointer"
+                title="Kayıtlı sabit kuralları bu aya topluca ekle"
+              >
+                <Repeat className="h-3.5 w-3.5" />
+                Sabitleri Ekle ({pendingRecurringCount})
+              </button>
+            )}
             <button
               type="button"
               onClick={onAdd}
@@ -456,6 +471,11 @@ export function BudgetTable({
                                   <Repeat className="h-2.5 w-2.5" />
                                   Sabit
                                 </span>
+                                {tx.installmentLabel && (
+                                  <span className="inline-flex rounded-md bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                                    {tx.installmentLabel}
+                                  </span>
+                                )}
                               </div>
                               {tx.note && (
                                 <p className="mt-0.5 truncate max-w-xs text-xs text-[#78716C]">
@@ -729,6 +749,11 @@ export function BudgetTable({
                                 <Repeat className="h-2.5 w-2.5" />
                                 Sabit
                               </span>
+                              {tx.installmentLabel && (
+                                <span className="inline-flex shrink-0 rounded-md bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                                  {tx.installmentLabel}
+                                </span>
+                              )}
                             </div>
                             <p className="mt-0.5 text-xs text-[#78716C]">
                               {formatShortDate(tx.date)} • {tx.category} • {accName}

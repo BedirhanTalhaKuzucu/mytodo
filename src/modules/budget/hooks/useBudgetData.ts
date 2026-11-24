@@ -8,6 +8,7 @@ import {
   buildNotionFinanceTransactions,
   buildNotionOverviewTransactions,
 } from "../storage/notion-import";
+import { createBudgetSeedData } from "../storage/seed";
 import { buildNotion2026Transactions } from "../storage/notion-2026-import";
 import { buildNotion2025Transactions } from "../storage/notion-2025-import";
 import type {
@@ -54,10 +55,35 @@ function getEffectiveTxAmount(tx: BudgetTransaction): number {
   return tx.amount;
 }
 
+function getMonthsDiff(fromMonth: string, toMonth: string): number {
+  const [fy, fm] = fromMonth.split("-").map(Number);
+  const [ty, tm] = toMonth.split("-").map(Number);
+  if (!fy || !fm || !ty || !tm) return 0;
+  return (ty - fy) * 12 + (tm - fm);
+}
+
+export function getInstallmentForMonth(
+  rule: RecurringExpenseRule,
+  monthKey: string
+): { isEligible: boolean; label?: string } {
+  if (!rule.isInstallment) return { isEligible: true };
+  const diff = getMonthsDiff(rule.startMonth, monthKey);
+  if (diff < 0) return { isEligible: false };
+  const current = (rule.startInstallment ?? 1) + diff;
+  if (rule.totalInstallments && current > rule.totalInstallments) {
+    return { isEligible: false };
+  }
+  const label = rule.totalInstallments
+    ? `${current}/${rule.totalInstallments}. Taksit`
+    : `${current}. Taksit`;
+  return { isEligible: true, label };
+}
+
 function materializeRecurringForMonth(
   monthKey: string,
   rules: RecurringExpenseRule[],
-  existingTransactions: BudgetTransaction[]
+  existingTransactions: BudgetTransaction[],
+  variant?: "expense" | "income"
 ): { nextTransactions: BudgetTransaction[]; added: boolean } {
   const now = new Date().toISOString();
   const toAdd: BudgetTransaction[] = [];
@@ -65,6 +91,11 @@ function materializeRecurringForMonth(
   for (const rule of rules) {
     if (!rule.isActive) continue;
     if (monthKey < rule.startMonth) continue;
+    const ruleType = rule.type ?? "expense";
+    if (variant && ruleType !== variant) continue;
+
+    const installmentInfo = getInstallmentForMonth(rule, monthKey);
+    if (!installmentInfo.isEligible) continue;
 
     const alreadyExists = existingTransactions.some(
       (tx) => tx.recurringRuleId === rule.id && tx.date.startsWith(monthKey)
@@ -72,13 +103,14 @@ function materializeRecurringForMonth(
     if (!alreadyExists) {
       toAdd.push({
         id: generateBudgetId(),
-        type: rule.type ?? "expense",
+        type: ruleType,
         amount: rule.amount,
         title: rule.title,
         category: rule.category,
         accountId: rule.accountId,
         date: buildDateInMonth(monthKey, rule.dayOfMonth),
         recurringRuleId: rule.id,
+        installmentLabel: installmentInfo.label,
         createdAt: now,
         updatedAt: now,
       });
@@ -138,16 +170,8 @@ export function useBudgetData() {
       .seedIfEmpty()
       .then((snap) => {
         if (!mounted) return;
-        const { nextTransactions, added } = materializeRecurringForMonth(
-          getCurrentMonthKey(),
-          snap.recurringRules,
-          snap.transactions
-        );
-        if (added) {
-          void budgetStorageAdapter.saveTransactions(nextTransactions);
-        }
         setAccounts(snap.accounts);
-        setTransactions(nextTransactions);
+        setTransactions(snap.transactions);
         setRecurringRules(snap.recurringRules);
         setClosures(snap.closures ?? []);
         setCustomCategories(
@@ -166,19 +190,23 @@ export function useBudgetData() {
     };
   }, []);
 
-  const setSelectedMonth = useCallback(
-    (nextMonth: string) => {
-      setSelectedMonthState(nextMonth);
-      try {
-        window.localStorage.setItem("denge_budget_selected_month_v1", nextMonth);
-      } catch {
-        // ignore
-      }
+  const setSelectedMonth = useCallback((nextMonth: string) => {
+    setSelectedMonthState(nextMonth);
+    try {
+      window.localStorage.setItem("denge_budget_selected_month_v1", nextMonth);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const applyRecurringRulesToMonth = useCallback(
+    (monthKey: string, variant?: "expense" | "income") => {
       setTransactions((prev) => {
         const { nextTransactions, added } = materializeRecurringForMonth(
-          nextMonth,
+          monthKey,
           recurringRules,
-          prev
+          prev,
+          variant
         );
         if (added) {
           void budgetStorageAdapter.saveTransactions(nextTransactions);
@@ -259,15 +287,43 @@ export function useBudgetData() {
   );
 
   const updateTransaction = useCallback(
-    (id: string, patch: Partial<BudgetTransaction>) => {
+    (
+      id: string,
+      patch: Partial<BudgetTransaction>,
+      updateRuleToo = false
+    ) => {
       const now = new Date().toISOString();
+      let targetRuleId: string | undefined;
       setTransactions((prev) => {
+        const target = prev.find((t) => t.id === id);
+        if (target?.recurringRuleId) {
+          targetRuleId = target.recurringRuleId;
+        }
         const updated = prev.map((tx) =>
           tx.id === id ? { ...tx, ...patch, updatedAt: now } : tx
         );
         void budgetStorageAdapter.saveTransactions(updated);
         return updated;
       });
+
+      if (updateRuleToo && targetRuleId) {
+        const ruleIdToUpdate = targetRuleId;
+        setRecurringRules((prevRules) => {
+          const updatedRules = prevRules.map((rule) =>
+            rule.id === ruleIdToUpdate
+              ? {
+                  ...rule,
+                  title: patch.title ?? rule.title,
+                  amount: patch.amount ?? rule.amount,
+                  category: patch.category ?? rule.category,
+                  accountId: patch.accountId ?? rule.accountId,
+                }
+              : rule
+          );
+          void budgetStorageAdapter.saveRecurringRules(updatedRules);
+          return updatedRules;
+        });
+      }
     },
     []
   );
@@ -308,6 +364,31 @@ export function useBudgetData() {
     });
   }, []);
 
+  const updateAccount = useCallback(
+    (
+      id: string,
+      patch: { name: string; kind: AccountKind; assetType: AssetType }
+    ) => {
+      const trimmed = patch.name.trim();
+      if (!trimmed) return;
+      setAccounts((prev) => {
+        const updated = prev.map((acc) =>
+          acc.id === id
+            ? {
+                ...acc,
+                name: trimmed,
+                kind: patch.kind,
+                assetType: patch.assetType,
+              }
+            : acc
+        );
+        void budgetStorageAdapter.saveAccounts(updated);
+        return updated;
+      });
+    },
+    []
+  );
+
   const addRecurringRule = useCallback(
     (input: {
       type?: "expense" | "income";
@@ -316,6 +397,9 @@ export function useBudgetData() {
       category: string;
       accountId: string;
       dayOfMonth: number;
+      isInstallment?: boolean;
+      startInstallment?: number;
+      totalInstallments?: number;
     }) => {
       const now = new Date().toISOString();
       const newRule: RecurringExpenseRule = {
@@ -328,6 +412,14 @@ export function useBudgetData() {
         dayOfMonth: Math.min(28, Math.max(1, input.dayOfMonth)),
         isActive: true,
         startMonth: selectedMonth,
+        isInstallment: input.isInstallment || undefined,
+        startInstallment: input.isInstallment
+          ? Math.max(1, input.startInstallment ?? 1)
+          : undefined,
+        totalInstallments:
+          input.isInstallment && input.totalInstallments && input.totalInstallments > 0
+            ? input.totalInstallments
+            : undefined,
         createdAt: now,
       };
 
@@ -365,6 +457,30 @@ export function useBudgetData() {
   const deleteRecurringRule = useCallback((id: string) => {
     setRecurringRules((prev) => {
       const updated = prev.filter((r) => r.id !== id);
+      void budgetStorageAdapter.saveRecurringRules(updated);
+      return updated;
+    });
+  }, []);
+
+  const updateRecurringRule = useCallback(
+    (id: string, patch: Partial<RecurringExpenseRule>) => {
+      setRecurringRules((prev) => {
+        const updated = prev.map((r) => (r.id === id ? { ...r, ...patch } : r));
+        void budgetStorageAdapter.saveRecurringRules(updated);
+        return updated;
+      });
+    },
+    []
+  );
+
+  const loadSeedRecurringRules = useCallback(() => {
+    const seedRules = createBudgetSeedData().recurringRules;
+    if (seedRules.length === 0) return;
+    setRecurringRules((prev) => {
+      const existingIds = new Set(prev.map((r) => r.id));
+      const toAdd = seedRules.filter((r) => !existingIds.has(r.id));
+      if (toAdd.length === 0) return prev;
+      const updated = [...prev, ...toAdd];
       void budgetStorageAdapter.saveRecurringRules(updated);
       return updated;
     });
@@ -608,41 +724,55 @@ export function useBudgetData() {
       map[acc.id] = { totalBalance: 0, monthDelta: 0, txCount: 0 };
     }
 
+    const closedMonthsSet = new Set(closures.map((c) => c.monthKey));
+    const includedOpenMonthsSet = new Set(includedOpenMonths);
+
     for (const tx of transactions) {
       const txMonth = tx.date.slice(0, 7);
+      const isOverview = tx.scope === "overview";
       const isMonthly = (tx.scope ?? "monthly") === "monthly";
+      const isRollover = Boolean(tx.closureSourceMonth);
       const isUpToSelected = txMonth <= selectedMonth;
       const isInSelected = isMonthly && txMonth === selectedMonth;
+      const affectsTotalBalance =
+        isOverview ||
+        (!isRollover &&
+          (includedOpenMonthsSet.has(txMonth) ||
+            (!tx.excludeFromOverviewBalance && closedMonthsSet.has(txMonth))));
 
       const eff = getEffectiveTxAmount(tx);
       if (tx.type === "income") {
         if (map[tx.accountId]) {
           map[tx.accountId].txCount += 1;
-          if (isUpToSelected) map[tx.accountId].totalBalance += eff;
+          if (isUpToSelected && affectsTotalBalance)
+            map[tx.accountId].totalBalance += eff;
           if (isInSelected) map[tx.accountId].monthDelta += eff;
         }
       } else if (tx.type === "expense") {
         if (map[tx.accountId]) {
           map[tx.accountId].txCount += 1;
-          if (isUpToSelected) map[tx.accountId].totalBalance -= eff;
+          if (isUpToSelected && affectsTotalBalance)
+            map[tx.accountId].totalBalance -= eff;
           if (isInSelected) map[tx.accountId].monthDelta -= eff;
         }
       } else if (tx.type === "transfer") {
         if (map[tx.accountId]) {
           map[tx.accountId].txCount += 1;
-          if (isUpToSelected) map[tx.accountId].totalBalance -= tx.amount;
+          if (isUpToSelected && affectsTotalBalance)
+            map[tx.accountId].totalBalance -= tx.amount;
           if (isInSelected) map[tx.accountId].monthDelta -= tx.amount;
         }
         if (tx.toAccountId && map[tx.toAccountId]) {
           map[tx.toAccountId].txCount += 1;
-          if (isUpToSelected) map[tx.toAccountId].totalBalance += tx.amount;
+          if (isUpToSelected && affectsTotalBalance)
+            map[tx.toAccountId].totalBalance += tx.amount;
           if (isInSelected) map[tx.toAccountId].monthDelta += tx.amount;
         }
       }
     }
 
     return map;
-  }, [accounts, transactions, selectedMonth]);
+  }, [accounts, transactions, selectedMonth, closures, includedOpenMonths]);
 
   // Monthly income/expense summary (only "money" accounts, transfers excluded)
   const monthlySummary = useMemo(() => {
@@ -717,11 +847,12 @@ export function useBudgetData() {
       }
 
       const txAsset = accountAssetMap[tx.accountId] ?? "money";
+      const isRollover = Boolean(tx.closureSourceMonth);
       const affectsOverviewBalance =
-        !tx.excludeFromOverviewBalance &&
-        (isOverview ||
-          closedMonthsSet.has(mk) ||
-          includedOpenMonthsSet.has(mk));
+        isOverview ||
+        (!isRollover &&
+          (includedOpenMonthsSet.has(mk) ||
+            (!tx.excludeFromOverviewBalance && closedMonthsSet.has(mk))));
 
       if (isOverview) {
         overviewTransactions.push(tx);
@@ -742,6 +873,27 @@ export function useBudgetData() {
           allTimeAccountBalances[tx.accountId] !== undefined
         ) {
           allTimeAccountBalances[tx.accountId] += eff;
+        }
+        if (!isOverview && tx.savingsAmount && tx.savingsAmount > 0) {
+          overviewTransactions.push({
+            ...tx,
+            id: `savings-${tx.id}`,
+            amount: tx.savingsAmount,
+            title: `${tx.title} (Tasarruf Payı)`,
+            category: "Tasarruf",
+            scope: "overview",
+            note: tx.note || "Aylık gelirden ayrılan tasarruf payı",
+            savingsAmount: undefined,
+          });
+          if (txAsset === "money") {
+            overviewIncome += tx.savingsAmount;
+          }
+          if (
+            affectsOverviewBalance &&
+            allTimeAccountBalances[tx.accountId] !== undefined
+          ) {
+            allTimeAccountBalances[tx.accountId] += tx.savingsAmount;
+          }
         }
       } else if (tx.type === "expense") {
         if (!isOverview && txAsset === "money") {
@@ -928,11 +1080,15 @@ export function useBudgetData() {
     updateTransaction,
     deleteTransaction,
     addAccount,
+    updateAccount,
     deleteAccount,
     addCategory,
     saveMonthNote,
     addRecurringRule,
+    applyRecurringRulesToMonth,
+    loadSeedRecurringRules,
     toggleRecurringRule,
+    updateRecurringRule,
     deleteRecurringRule,
     closeOrUpdateMonth,
     reopenMonth,

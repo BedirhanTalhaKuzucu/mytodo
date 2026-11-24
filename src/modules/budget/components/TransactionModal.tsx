@@ -21,12 +21,17 @@ interface TransactionModalProps {
   expenseCategories?: readonly string[];
   incomeCategories?: readonly string[];
   monthIncomes?: BudgetTransaction[];
+  hasLinkedRecurringRule?: boolean;
   editingTx?: BudgetTransaction | null;
   initialType?: TransactionType;
   initialScope?: TransactionScope;
   defaultMonth: string;
   onClose: () => void;
-  onSave: (input: SaveTransactionInput, editingId?: string) => void;
+  onSave: (
+    input: SaveTransactionInput,
+    editingId?: string,
+    updateRuleToo?: boolean
+  ) => void;
   onDelete?: (id: string) => void;
   onAddCategory?: (type: "expense" | "income", name: string) => string;
 }
@@ -36,6 +41,7 @@ export function TransactionModal({
   expenseCategories = EXPENSE_CATEGORIES,
   incomeCategories = INCOME_CATEGORIES,
   monthIncomes = [],
+  hasLinkedRecurringRule = false,
   editingTx,
   initialType = "expense",
   initialScope = "monthly",
@@ -84,6 +90,7 @@ export function TransactionModal({
     editingTx?.savingsAmount ? String(editingTx.savingsAmount) : ""
   );
   const [makeRecurring, setMakeRecurring] = useState(false);
+  const [updateRuleToo, setUpdateRuleToo] = useState(false);
 
   const handleTypeChange = (nextType: TransactionType) => {
     setType(nextType);
@@ -149,7 +156,8 @@ export function TransactionModal({
           (type === "expense" || type === "income") &&
           makeRecurring,
       },
-      editingTx?.id
+      editingTx?.id,
+      editingTx && hasLinkedRecurringRule ? updateRuleToo : false
     );
     onClose();
   };
@@ -510,6 +518,40 @@ export function TransactionModal({
               </p>
             </div>
           </label>
+        )}
+
+        {/* Edit Scope Choice for Linked Recurring Item */}
+        {editingTx && hasLinkedRecurringRule && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-950">
+              <Repeat className="h-3.5 w-3.5 text-[#4F46E5]" />
+              <span>Bu işlem bir Sabit Kurala bağlı. Değişiklik nereye uygulansın?</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setUpdateRuleToo(false)}
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition-all cursor-pointer ${
+                  !updateRuleToo
+                    ? "border-indigo-400 bg-white text-[#1C1917] font-semibold ring-2 ring-indigo-100"
+                    : "border-[#E7E5E4] bg-white/70 text-[#78716C] hover:text-[#1C1917]"
+                }`}
+              >
+                Sadece Bu Ayı Güncelle
+              </button>
+              <button
+                type="button"
+                onClick={() => setUpdateRuleToo(true)}
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition-all cursor-pointer ${
+                  updateRuleToo
+                    ? "border-indigo-400 bg-indigo-600 text-white font-semibold"
+                    : "border-[#E7E5E4] bg-white/70 text-[#78716C] hover:text-[#1C1917]"
+                }`}
+              >
+                Sabit Kuralı da Güncelle
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Fixed / Recurring Checkbox */}

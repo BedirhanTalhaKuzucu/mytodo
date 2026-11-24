@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Pause, Play, Plus, Repeat, Trash2, X } from "lucide-react";
+import { Edit3, Plus, Repeat, Trash2, X } from "lucide-react";
 import type { BudgetAccount, RecurringExpenseRule } from "../types";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, formatCurrency } from "../utils";
 
@@ -18,9 +18,13 @@ interface RecurringModalProps {
     category: string;
     accountId: string;
     dayOfMonth: number;
+    isInstallment?: boolean;
+    startInstallment?: number;
+    totalInstallments?: number;
   }) => void;
-  onToggleRule: (id: string) => void;
+  onUpdateRule?: (id: string, patch: Partial<RecurringExpenseRule>) => void;
   onDeleteRule: (id: string) => void;
+  onLoadSeedRules?: () => void;
 }
 
 export function RecurringModal({
@@ -30,20 +34,55 @@ export function RecurringModal({
   incomeCategories = INCOME_CATEGORIES,
   onClose,
   onAddRule,
-  onToggleRule,
+  onUpdateRule,
   onDeleteRule,
+  onLoadSeedRules,
 }: RecurringModalProps) {
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleType, setRuleType] = useState<"expense" | "income">("expense");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[1]);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [dayOfMonth, setDayOfMonth] = useState("1");
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [startInstallment, setStartInstallment] = useState("1");
+  const [totalInstallments, setTotalInstallments] = useState("");
+
+  const startEdit = (rule: RecurringExpenseRule) => {
+    setEditingRuleId(rule.id);
+    setRuleType(rule.type ?? "expense");
+    setTitle(rule.title);
+    setAmount(String(rule.amount));
+    setCategory(rule.category);
+    setAccountId(rule.accountId);
+    setDayOfMonth(String(rule.dayOfMonth));
+    setIsInstallment(Boolean(rule.isInstallment));
+    setStartInstallment(String(rule.startInstallment ?? 1));
+    setTotalInstallments(
+      rule.totalInstallments ? String(rule.totalInstallments) : ""
+    );
+  };
+
+  const resetForm = () => {
+    setEditingRuleId(null);
+    setRuleType("expense");
+    setTitle("");
+    setAmount("");
+    setCategory(expenseCategories[1] ?? EXPENSE_CATEGORIES[1]);
+    setAccountId(accounts[0]?.id ?? "");
+    setDayOfMonth("1");
+    setIsInstallment(false);
+    setStartInstallment("1");
+    setTotalInstallments("");
+  };
 
   const handleRuleTypeChange = (next: "expense" | "income") => {
     setRuleType(next);
     setCategory(
-      next === "income" ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[1]
+      next === "income"
+        ? incomeCategories[0] ?? INCOME_CATEGORIES[0]
+        : expenseCategories[1] ?? EXPENSE_CATEGORIES[1]
     );
   };
 
@@ -51,16 +90,40 @@ export function RecurringModal({
     e.preventDefault();
     const numeric = Number(amount.replace(",", "."));
     if (!title.trim() || !Number.isFinite(numeric) || numeric <= 0) return;
+
+    const startInstNum = Math.max(1, Number(startInstallment) || 1);
+    const totalInstNum = Number(totalInstallments) || 0;
+
+    if (editingRuleId && onUpdateRule) {
+      onUpdateRule(editingRuleId, {
+        type: ruleType,
+        title: title.trim(),
+        amount: numeric,
+        category,
+        accountId,
+        dayOfMonth: Math.min(28, Math.max(1, Number(dayOfMonth) || 1)),
+        isInstallment: isInstallment || undefined,
+        startInstallment: isInstallment ? startInstNum : undefined,
+        totalInstallments:
+          isInstallment && totalInstNum > 0 ? totalInstNum : undefined,
+      });
+      resetForm();
+      return;
+    }
+
     onAddRule({
       type: ruleType,
       title: title.trim(),
       amount: numeric,
       category,
       accountId,
-      dayOfMonth: Number(dayOfMonth) || 1,
+      dayOfMonth: Math.min(28, Math.max(1, Number(dayOfMonth) || 1)),
+      isInstallment: isInstallment || undefined,
+      startInstallment: isInstallment ? startInstNum : undefined,
+      totalInstallments:
+        isInstallment && totalInstNum > 0 ? totalInstNum : undefined,
     });
-    setTitle("");
-    setAmount("");
+    resetForm();
   };
 
   return (
@@ -84,15 +147,27 @@ export function RecurringModal({
         </div>
 
         <p className="text-xs text-[#78716C]">
-          Aktif sabit giderler, yeni bir aya geçtiğinde otomatik olarak o ayın giderlerine eklenir.
+          Kayıtlı sabit kuralları istediğin ayın tablosundaki &ldquo;Sabitleri Ekle&rdquo; butonuyla tek tıkla o aya aktarabilirsin.
         </p>
 
         {/* Existing Rules */}
         <div className="space-y-2 max-h-56 overflow-y-auto">
           {rules.length === 0 ? (
-            <p className="py-4 text-center text-xs text-[#78716C]">
-              Henüz tanımlı sabit gider yok.
-            </p>
+            <div className="py-4 text-center space-y-2.5">
+              <p className="text-xs text-[#78716C]">
+                Henüz tanımlı sabit gider yok.
+              </p>
+              {onLoadSeedRules && (
+                <button
+                  type="button"
+                  onClick={onLoadSeedRules}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-[#4F46E5] hover:bg-indigo-100 transition-colors cursor-pointer"
+                >
+                  <Repeat className="h-3.5 w-3.5" />
+                  Kasım 2026 Sabitlerini Yükle (13)
+                </button>
+              )}
+            </div>
           ) : (
             rules.map((rule) => {
               const accName =
@@ -107,9 +182,18 @@ export function RecurringModal({
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[#1C1917]">
-                      {rule.title}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-sm font-medium text-[#1C1917]">
+                        {rule.title}
+                      </p>
+                      {rule.isInstallment && (
+                        <span className="inline-flex shrink-0 rounded-md bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                          {rule.totalInstallments
+                            ? `${rule.startInstallment ?? 1}/${rule.totalInstallments} Taksit`
+                            : `${rule.startInstallment ?? 1}+ Taksit`}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-[#78716C]">
                       Her ayın {rule.dayOfMonth}. günü • {rule.category} •{" "}
                       {accName}
@@ -129,21 +213,20 @@ export function RecurringModal({
                     </span>
                     <button
                       type="button"
-                      onClick={() => onToggleRule(rule.id)}
-                      title={rule.isActive ? "Duraklat" : "Aktifleştir"}
-                      className="rounded-lg border border-[#E7E5E4] bg-white p-1.5 text-[#78716C] hover:text-[#1C1917]"
+                      onClick={() => startEdit(rule)}
+                      title="Kuralı Düzenle"
+                      className="rounded-lg border border-[#E7E5E4] bg-white p-1.5 text-[#78716C] hover:text-[#4F46E5] cursor-pointer"
                     >
-                      {rule.isActive ? (
-                        <Pause className="h-3.5 w-3.5" />
-                      ) : (
-                        <Play className="h-3.5 w-3.5" />
-                      )}
+                      <Edit3 className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDeleteRule(rule.id)}
+                      onClick={() => {
+                        if (editingRuleId === rule.id) resetForm();
+                        onDeleteRule(rule.id);
+                      }}
                       title="Kuralı Sil"
-                      className="rounded-lg border border-[#E7E5E4] bg-white p-1.5 text-[#78716C] hover:text-rose-600"
+                      className="rounded-lg border border-[#E7E5E4] bg-white p-1.5 text-[#78716C] hover:text-rose-600 cursor-pointer"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -161,7 +244,7 @@ export function RecurringModal({
         >
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-[#78716C]">
-              Yeni Sabit İşlem Tanımla
+              {editingRuleId ? "Sabit İşlemi Düzenle" : "Yeni Sabit İşlem Tanımla"}
             </p>
             <div className="flex items-center rounded-lg bg-stone-100 p-0.5 text-[11px] font-medium">
               <button
@@ -247,14 +330,69 @@ export function RecurringModal({
               className="rounded-xl border border-[#E7E5E4] bg-white px-2.5 py-2 text-xs text-[#1C1917]"
             />
           </div>
-          <button
-            type="submit"
-            disabled={!title.trim() || !amount || Number(amount) <= 0}
-            className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#1C1917] py-2 text-xs font-medium text-white disabled:opacity-40 hover:bg-stone-800"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Sabit Gider Ekle
-          </button>
+
+          {/* Installment (Taksit) Option */}
+          <div className="rounded-xl border border-[#E7E5E4] bg-[#FAF9F6] p-2.5 space-y-2">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#1C1917] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isInstallment}
+                onChange={(e) => setIsInstallment(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+              />
+              <span>Taksitli işlem (aya göre taksit numarasını otomatik say)</span>
+            </label>
+            {isInstallment && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-[#78716C] mb-0.5">
+                    Başlangıç Taksiti
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={startInstallment}
+                    onChange={(e) => setStartInstallment(e.target.value)}
+                    placeholder="Örn: 1"
+                    className="w-full rounded-lg border border-[#E7E5E4] bg-white px-2.5 py-1.5 text-xs text-[#1C1917]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-[#78716C] mb-0.5">
+                    Toplam Taksit (İsteğe Bağlı)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={totalInstallments}
+                    onChange={(e) => setTotalInstallments(e.target.value)}
+                    placeholder="Örn: 24"
+                    className="w-full rounded-lg border border-[#E7E5E4] bg-white px-2.5 py-1.5 text-xs text-[#1C1917]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {editingRuleId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="rounded-xl border border-[#E7E5E4] bg-white px-4 py-2 text-xs font-medium text-[#78716C] hover:text-[#1C1917] cursor-pointer"
+              >
+                İptal
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={!title.trim() || !amount || Number(amount) <= 0}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#1C1917] py-2 text-xs font-medium text-white disabled:opacity-40 hover:bg-stone-800 cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {editingRuleId ? "Değişiklikleri Kaydet" : "Sabit Kural Ekle"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

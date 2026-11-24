@@ -3,8 +3,10 @@
 import React, { useState } from "react";
 import {
   Banknote,
+  Check,
   CreditCard,
   Landmark,
+  Pencil,
   Plus,
   Trash2,
   Wallet,
@@ -21,6 +23,10 @@ interface AccountsModalProps {
   >;
   onClose: () => void;
   onAddAccount: (name: string, kind: AccountKind, assetType: AssetType) => void;
+  onUpdateAccount: (
+    id: string,
+    patch: { name: string; kind: AccountKind; assetType: AssetType }
+  ) => void;
   onDeleteAccount: (id: string) => void;
 }
 
@@ -49,11 +55,34 @@ export function AccountsModal({
   accountStats,
   onClose,
   onAddAccount,
+  onUpdateAccount,
   onDeleteAccount,
 }: AccountsModalProps) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<AccountKind>("card");
   const [assetType, setAssetType] = useState<AssetType>("money");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editKind, setEditKind] = useState<AccountKind>("card");
+  const [editAssetType, setEditAssetType] = useState<AssetType>("money");
+
+  const startEditing = (acc: BudgetAccount) => {
+    setEditingId(acc.id);
+    setEditName(acc.name);
+    setEditKind(acc.kind);
+    setEditAssetType(acc.assetType ?? "money");
+  };
+
+  const handleSaveEdit = (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+    onUpdateAccount(id, {
+      name: editName.trim(),
+      kind: editKind,
+      assetType: editAssetType,
+    });
+    setEditingId(null);
+  };
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +120,79 @@ export function AccountsModal({
               txCount: 0,
             };
             const canDelete = !acc.isDefault && stat.txCount === 0;
+            const isEditing = editingId === acc.id;
+
+            if (isEditing) {
+              return (
+                <form
+                  key={acc.id}
+                  onSubmit={(e) => handleSaveEdit(e, acc.id)}
+                  className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-2.5 space-y-2"
+                >
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    autoFocus
+                    placeholder="Hesap adı"
+                    className="w-full rounded-lg border border-[#E7E5E4] bg-white px-2.5 py-1.5 text-xs font-medium text-[#1C1917] focus:border-indigo-300 focus:outline-none"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={editAssetType}
+                      onChange={(e) =>
+                        setEditAssetType(e.target.value as AssetType)
+                      }
+                      disabled={stat.txCount > 0}
+                      title={
+                        stat.txCount > 0
+                          ? "İşlem bulunan hesabın varlık cinsi değiştirilemez"
+                          : "Varlık Cinsi"
+                      }
+                      aria-label="Varlık Cinsi"
+                      className="rounded-lg border border-[#E7E5E4] bg-white px-2.5 py-1.5 text-xs font-medium text-[#1C1917] disabled:opacity-60"
+                    >
+                      <option value="money">Para (€)</option>
+                      <option value="gold">Altın (gr)</option>
+                      <option value="stock">Hisse (lot)</option>
+                    </select>
+                    <select
+                      value={editKind}
+                      onChange={(e) =>
+                        setEditKind(e.target.value as AccountKind)
+                      }
+                      aria-label="Hesap Türü"
+                      className="rounded-lg border border-[#E7E5E4] bg-white px-2.5 py-1.5 text-xs text-[#1C1917]"
+                    >
+                      {KIND_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#E7E5E4] bg-white px-2.5 py-1 text-[11px] font-medium text-[#78716C] hover:bg-stone-50 cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                      İptal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!editName.trim()}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#4F46E5] px-2.5 py-1 text-[11px] font-medium text-white disabled:opacity-40 hover:bg-indigo-700 cursor-pointer"
+                    >
+                      <Check className="h-3 w-3" />
+                      Kaydet
+                    </button>
+                  </div>
+                </form>
+              );
+            }
+
             return (
               <div
                 key={acc.id}
@@ -111,19 +213,38 @@ export function AccountsModal({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-semibold text-[#1C1917] tabular-nums">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-xs font-semibold text-[#1C1917] tabular-nums mr-0.5">
                     {formatAssetAmount(
                       stat.totalBalance,
                       acc.assetType ?? "money"
                     )}
                   </span>
-                  {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => startEditing(acc)}
+                    title="Hesabı Düzenle"
+                    className="rounded p-1 text-[#78716C] hover:bg-stone-200/70 hover:text-[#1C1917] cursor-pointer"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  {!acc.isDefault && (
                     <button
                       type="button"
-                      onClick={() => onDeleteAccount(acc.id)}
-                      title="Hesabı Sil"
-                      className="rounded p-1 text-[#78716C] hover:text-rose-600"
+                      onClick={() => {
+                        if (canDelete) onDeleteAccount(acc.id);
+                      }}
+                      disabled={!canDelete}
+                      title={
+                        canDelete
+                          ? "Hesabı Sil"
+                          : `Bu hesapta ${stat.txCount} işlem olduğu için silinemez`
+                      }
+                      className={`rounded p-1 ${
+                        canDelete
+                          ? "text-[#78716C] hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+                          : "text-stone-300 cursor-not-allowed"
+                      }`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

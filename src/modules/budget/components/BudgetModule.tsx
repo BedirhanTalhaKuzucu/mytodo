@@ -17,7 +17,10 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { useBudgetData } from "../hooks/useBudgetData";
+import {
+  getInstallmentForMonth,
+  useBudgetData,
+} from "../hooks/useBudgetData";
 import type {
   BudgetTransaction,
   TransactionScope,
@@ -51,6 +54,7 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
     selectedMonth,
     setSelectedMonth,
     accounts,
+    transactions,
     monthTransactions,
     recurringRules,
     closures,
@@ -65,11 +69,14 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
     updateTransaction,
     deleteTransaction,
     addAccount,
+    updateAccount,
     deleteAccount,
     addCategory,
     saveMonthNote,
     addRecurringRule,
-    toggleRecurringRule,
+    applyRecurringRulesToMonth,
+    loadSeedRecurringRules,
+    updateRecurringRule,
     deleteRecurringRule,
     closeOrUpdateMonth,
     reopenMonth,
@@ -131,6 +138,32 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
   const transferTransactions = useMemo(
     () => monthTransactions.filter((tx) => tx.type === "transfer"),
     [monthTransactions]
+  );
+
+  const pendingExpenseRecurringCount = useMemo(
+    () =>
+      recurringRules.filter(
+        (r) =>
+          r.isActive &&
+          (r.type ?? "expense") === "expense" &&
+          selectedMonth >= r.startMonth &&
+          getInstallmentForMonth(r, selectedMonth).isEligible &&
+          !monthTransactions.some((tx) => tx.recurringRuleId === r.id)
+      ).length,
+    [recurringRules, selectedMonth, monthTransactions]
+  );
+
+  const pendingIncomeRecurringCount = useMemo(
+    () =>
+      recurringRules.filter(
+        (r) =>
+          r.isActive &&
+          r.type === "income" &&
+          selectedMonth >= r.startMonth &&
+          getInstallmentForMonth(r, selectedMonth).isEligible &&
+          !monthTransactions.some((tx) => tx.recurringRuleId === r.id)
+      ).length,
+    [recurringRules, selectedMonth, monthTransactions]
   );
 
   const currentClosure = useMemo(
@@ -283,7 +316,6 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
             allTimeAccountBalances={overallStats.allTimeAccountBalances}
             totalsByAssetType={overallStats.totalsByAssetType}
             presentAssetTypes={overallStats.presentAssetTypes}
-            totalVaultReserve={overallStats.totalVaultReserve}
             monthsOverview={overallStats.monthsOverview}
             overviewTransactions={overallStats.overviewTransactions}
             monthNotes={monthNotes}
@@ -305,14 +337,19 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
                 editingTx: null,
               })
             }
-            onEditOverviewTx={(tx) =>
+            onEditOverviewTx={(tx) => {
+              const actualTx = tx.id.startsWith("savings-")
+                ? transactions.find(
+                    (t) => t.id === tx.id.slice("savings-".length)
+                  ) ?? tx
+                : tx;
               setTxModalState({
                 open: true,
-                initialType: tx.type,
-                initialScope: tx.scope ?? "overview",
-                editingTx: tx,
-              })
-            }
+                initialType: actualTx.type,
+                initialScope: actualTx.scope ?? "overview",
+                editingTx: actualTx,
+              });
+            }}
           />
         ) : (
           <div className="mx-auto max-w-6xl space-y-6">
@@ -618,6 +655,10 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
                 transactions={expenseTransactions}
                 accounts={accounts}
                 categories={expenseCategories}
+                pendingRecurringCount={pendingExpenseRecurringCount}
+                onApplyRecurringRules={() =>
+                  applyRecurringRulesToMonth(selectedMonth, "expense")
+                }
                 onEdit={(tx) =>
                   setTxModalState({
                     open: true,
@@ -643,6 +684,10 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
                 transactions={[...incomeTransactions, ...transferTransactions]}
                 accounts={accounts}
                 categories={incomeCategories}
+                pendingRecurringCount={pendingIncomeRecurringCount}
+                onApplyRecurringRules={() =>
+                  applyRecurringRulesToMonth(selectedMonth, "income")
+                }
                 onEdit={(tx) =>
                   setTxModalState({
                     open: true,
@@ -831,6 +876,12 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
           monthIncomes={incomeTransactions}
+          hasLinkedRecurringRule={Boolean(
+            txModalState.editingTx?.recurringRuleId &&
+              recurringRules.some(
+                (r) => r.id === txModalState.editingTx?.recurringRuleId
+              )
+          )}
           editingTx={txModalState.editingTx}
           initialType={txModalState.initialType}
           initialScope={txModalState.initialScope}
@@ -839,21 +890,25 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
           onClose={() =>
             setTxModalState((s) => ({ ...s, open: false, editingTx: null }))
           }
-          onSave={(input, editingId) => {
+          onSave={(input, editingId, updateRuleToo) => {
             if (editingId) {
-              updateTransaction(editingId, {
-                type: input.type,
-                amount: input.amount,
-                title: input.title,
-                category: input.category,
-                accountId: input.accountId,
-                toAccountId: input.toAccountId,
-                sourceIncomeId: input.sourceIncomeId,
-                date: input.date,
-                note: input.note,
-                scope: input.scope,
-                savingsAmount: input.savingsAmount,
-              });
+              updateTransaction(
+                editingId,
+                {
+                  type: input.type,
+                  amount: input.amount,
+                  title: input.title,
+                  category: input.category,
+                  accountId: input.accountId,
+                  toAccountId: input.toAccountId,
+                  sourceIncomeId: input.sourceIncomeId,
+                  date: input.date,
+                  note: input.note,
+                  scope: input.scope,
+                  savingsAmount: input.savingsAmount,
+                },
+                updateRuleToo
+              );
             } else {
               addTransaction(input);
             }
@@ -870,6 +925,7 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
           onAddAccount={(name, kind, assetType) =>
             addAccount(name, kind, assetType)
           }
+          onUpdateAccount={updateAccount}
           onDeleteAccount={deleteAccount}
         />
       )}
@@ -882,8 +938,9 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
           incomeCategories={incomeCategories}
           onClose={() => setIsRecurringOpen(false)}
           onAddRule={addRecurringRule}
-          onToggleRule={toggleRecurringRule}
+          onUpdateRule={updateRecurringRule}
           onDeleteRule={deleteRecurringRule}
+          onLoadSeedRules={loadSeedRecurringRules}
         />
       )}
 

@@ -22574,7 +22574,184 @@
     }
   ],
   "recurringRules": [],
-  "closures": [],
+  "closures": [
+    {
+      "monthKey": "2026-10",
+      "netAtClose": -142.23,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-09",
+      "netAtClose": 95.69,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-08",
+      "netAtClose": 464.98,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-07",
+      "netAtClose": -47.97,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-06",
+      "netAtClose": 136.85,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-05",
+      "netAtClose": -572.01,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-04",
+      "netAtClose": -432.67,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-03",
+      "netAtClose": 24.59,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-02",
+      "netAtClose": -39.13,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2026-01",
+      "netAtClose": 55.94,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-12",
+      "netAtClose": 4.81,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-11",
+      "netAtClose": -213.25,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-10",
+      "netAtClose": -57.74,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-09",
+      "netAtClose": -323.62,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-08",
+      "netAtClose": -268.4,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-07",
+      "netAtClose": -324.2,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-06",
+      "netAtClose": 132.85,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-05",
+      "netAtClose": 143.08,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-04",
+      "netAtClose": 281.29,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-03",
+      "netAtClose": 253.58,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-02",
+      "netAtClose": -164.59,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    },
+    {
+      "monthKey": "2025-01",
+      "netAtClose": -6.26,
+      "carryOverAmount": 0,
+      "toTotalAmount": 0,
+      "accountId": "acc-default-bank",
+      "closedAt": "2026-11-24T13:03:49.813Z"
+    }
+  ],
   "customCategories": {
     "expense": [],
     "income": []

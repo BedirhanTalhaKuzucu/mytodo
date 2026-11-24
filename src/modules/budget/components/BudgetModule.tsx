@@ -55,6 +55,7 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
     recurringRules,
     closures,
     monthNotes,
+    includedOpenMonths,
     expenseCategories,
     incomeCategories,
     accountStats,
@@ -72,6 +73,8 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
     deleteRecurringRule,
     closeOrUpdateMonth,
     reopenMonth,
+    toggleOpenMonthInBalance,
+    closePastMonths,
   } = useBudgetData();
 
   const [activePage, setActivePageState] = useState<BudgetPage>(() => {
@@ -284,12 +287,15 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
             monthsOverview={overallStats.monthsOverview}
             overviewTransactions={overallStats.overviewTransactions}
             monthNotes={monthNotes}
+            includedOpenMonths={includedOpenMonths}
             onSelectMonth={(mk) => {
               setSelectedMonth(mk);
               setActivePage("monthly");
             }}
             onOpenClosureForMonth={(mk) => setClosureTargetMonth(mk)}
             onOpenNoteForMonth={(mk) => setNoteTargetMonth(mk)}
+            onToggleIncludeOpenMonth={toggleOpenMonthInBalance}
+            onClosePastMonths={closePastMonths}
             onAddOverviewTx={(mk, txType) =>
               setTxModalState({
                 open: true,

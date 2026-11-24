@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import {
   ArrowRight,
+  Calculator,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -28,6 +29,7 @@ import {
   formatCurrency,
   formatMonthLabel,
   formatShortDate,
+  getCurrentMonthKey,
 } from "../utils";
 import { AccountKindIcon } from "./AccountsModal";
 
@@ -46,9 +48,12 @@ interface BudgetOverviewPageProps {
   }[];
   overviewTransactions: BudgetTransaction[];
   monthNotes: MonthNote[];
+  includedOpenMonths: string[];
   onSelectMonth: (monthKey: string) => void;
   onOpenClosureForMonth: (monthKey: string) => void;
   onOpenNoteForMonth: (monthKey: string) => void;
+  onToggleIncludeOpenMonth: (monthKey: string) => void;
+  onClosePastMonths: () => void;
   onAddOverviewTx: (monthKey: string, type: "income" | "expense") => void;
   onEditOverviewTx: (tx: BudgetTransaction) => void;
 }
@@ -72,9 +77,12 @@ export function BudgetOverviewPage({
   monthsOverview,
   overviewTransactions,
   monthNotes,
+  includedOpenMonths,
   onSelectMonth,
   onOpenClosureForMonth,
   onOpenNoteForMonth,
+  onToggleIncludeOpenMonth,
+  onClosePastMonths,
   onAddOverviewTx,
   onEditOverviewTx,
 }: BudgetOverviewPageProps) {
@@ -225,10 +233,22 @@ export function BudgetOverviewPage({
 
       {/* All Months Summary Table */}
       <section className="rounded-2xl border border-[#E7E5E4] bg-white shadow-2xs overflow-hidden">
-        <div className="border-b border-[#E7E5E4] bg-[#FAF9F6]/60 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E7E5E4] bg-[#FAF9F6]/60 px-4 py-3">
           <h2 className="text-sm font-semibold text-[#1C1917]">
             Ayların Total Özeti & Kapanış Durumu
           </h2>
+          {monthsOverview.some(
+            (m) => m.monthKey < getCurrentMonthKey() && !m.closure
+          ) && (
+            <button
+              type="button"
+              onClick={onClosePastMonths}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 transition-colors cursor-pointer"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Önceki Ayları Kapat
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -309,9 +329,28 @@ export function BudgetOverviewPage({
                             Kapandı
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                            Açık
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                              Açık
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onToggleIncludeOpenMonth(m.monthKey)
+                              }
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                                includedOpenMonths.includes(m.monthKey)
+                                  ? "border-indigo-300 bg-indigo-50 text-[#4F46E5] hover:bg-indigo-100"
+                                  : "border-stone-200 bg-stone-50 text-[#78716C] hover:bg-stone-100"
+                              }`}
+                              title="Bu açık ayın aylık netinin genel kasa bakiyesine dahil edilip edilmeyeceğini seç"
+                            >
+                              <Calculator className="h-3 w-3" />
+                              {includedOpenMonths.includes(m.monthKey)
+                                ? "Hesaba Dahil"
+                                : "Hesaba Dahil Değil"}
+                            </button>
+                          </div>
                         )}
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-xs text-[#78716C] tabular-nums">

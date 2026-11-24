@@ -115,6 +115,21 @@ export function useBudgetData() {
   const [customCategories, setCustomCategories] =
     useState<BudgetCustomCategories>({ expense: [], income: [] });
   const [monthNotes, setMonthNotes] = useState<MonthNote[]>([]);
+  const [includedOpenMonths, setIncludedOpenMonths] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = window.localStorage.getItem(
+        "denge_budget_included_open_months_v1"
+      );
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -478,6 +493,60 @@ export function useBudgetData() {
     });
   }, []);
 
+  const toggleOpenMonthInBalance = useCallback((monthKey: string) => {
+    setIncludedOpenMonths((prev) => {
+      const next = prev.includes(monthKey)
+        ? prev.filter((m) => m !== monthKey)
+        : [...prev, monthKey];
+      try {
+        window.localStorage.setItem(
+          "denge_budget_included_open_months_v1",
+          JSON.stringify(next)
+        );
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const closePastMonths = useCallback(() => {
+    const currentMk = getCurrentMonthKey();
+    const now = new Date().toISOString();
+    const defaultAccId = accounts[0]?.id ?? "acc-default-bank";
+
+    setClosures((prevClosures) => {
+      const closedSet = new Set(prevClosures.map((c) => c.monthKey));
+      const monthSums: Record<string, { inc: number; exp: number }> = {};
+
+      for (const tx of transactions) {
+        if ((tx.scope ?? "monthly") !== "monthly") continue;
+        const mk = tx.date.slice(0, 7);
+        if (mk >= currentMk || closedSet.has(mk)) continue;
+        if (!monthSums[mk]) monthSums[mk] = { inc: 0, exp: 0 };
+        const eff = getEffectiveTxAmount(tx);
+        if (tx.type === "income") monthSums[mk].inc += eff;
+        else if (tx.type === "expense") monthSums[mk].exp += eff;
+      }
+
+      const newClosures: MonthClosure[] = Object.entries(monthSums).map(
+        ([mk, s]) => ({
+          monthKey: mk,
+          netAtClose: Math.round((s.inc - s.exp) * 100) / 100,
+          carryOverAmount: 0,
+          toTotalAmount: 0,
+          accountId: defaultAccId,
+          closedAt: now,
+        })
+      );
+
+      if (newClosures.length === 0) return prevClosures;
+      const updated = [...newClosures, ...prevClosures];
+      void budgetStorageAdapter.saveClosures(updated);
+      return updated;
+    });
+  }, [accounts, transactions]);
+
   const importNotionFinanceData = useCallback(() => {
     const notionTxs = buildNotionFinanceTransactions();
     setAccounts(NOTION_ACCOUNTS);
@@ -637,6 +706,8 @@ export function useBudgetData() {
     const overviewTransactions: BudgetTransaction[] = [];
     let overviewIncome = 0;
     let overviewExpense = 0;
+    const closedMonthsSet = new Set(closures.map((c) => c.monthKey));
+    const includedOpenMonthsSet = new Set(includedOpenMonths);
 
     for (const tx of transactions) {
       const isOverview = tx.scope === "overview";
@@ -646,6 +717,11 @@ export function useBudgetData() {
       }
 
       const txAsset = accountAssetMap[tx.accountId] ?? "money";
+      const affectsOverviewBalance =
+        !tx.excludeFromOverviewBalance &&
+        (isOverview ||
+          closedMonthsSet.has(mk) ||
+          includedOpenMonthsSet.has(mk));
 
       if (isOverview) {
         overviewTransactions.push(tx);
@@ -662,7 +738,7 @@ export function useBudgetData() {
           monthMap[mk].net += eff;
         }
         if (
-          !tx.excludeFromOverviewBalance &&
+          affectsOverviewBalance &&
           allTimeAccountBalances[tx.accountId] !== undefined
         ) {
           allTimeAccountBalances[tx.accountId] += eff;
@@ -673,20 +749,20 @@ export function useBudgetData() {
           monthMap[mk].net -= eff;
         }
         if (
-          !tx.excludeFromOverviewBalance &&
+          affectsOverviewBalance &&
           allTimeAccountBalances[tx.accountId] !== undefined
         ) {
           allTimeAccountBalances[tx.accountId] -= eff;
         }
       } else if (tx.type === "transfer") {
         if (
-          !tx.excludeFromOverviewBalance &&
+          affectsOverviewBalance &&
           allTimeAccountBalances[tx.accountId] !== undefined
         ) {
           allTimeAccountBalances[tx.accountId] -= tx.amount;
         }
         if (
-          !tx.excludeFromOverviewBalance &&
+          affectsOverviewBalance &&
           tx.toAccountId &&
           allTimeAccountBalances[tx.toAccountId] !== undefined
         ) {
@@ -750,7 +826,7 @@ export function useBudgetData() {
         net: overviewIncome - overviewExpense,
       },
     };
-  }, [accounts, transactions, closures]);
+  }, [accounts, transactions, closures, includedOpenMonths]);
 
   const expenseCategories = useMemo(() => {
     const seen = new Set<string>();
@@ -842,6 +918,7 @@ export function useBudgetData() {
     recurringRules,
     closures,
     monthNotes,
+    includedOpenMonths,
     expenseCategories,
     incomeCategories,
     accountStats,
@@ -859,6 +936,8 @@ export function useBudgetData() {
     deleteRecurringRule,
     closeOrUpdateMonth,
     reopenMonth,
+    toggleOpenMonthInBalance,
+    closePastMonths,
     importNotionFinanceData,
     importNotion2026Data,
   };

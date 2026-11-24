@@ -444,6 +444,20 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
                   <Repeat className="h-3.5 w-3.5 text-[#4F46E5]" />
                   Sabit
                 </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTxModalState({
+                      open: true,
+                      initialType: "transfer",
+                      editingTx: null,
+                    })
+                  }
+                  className="md:hidden inline-flex items-center gap-1 rounded-xl border border-[#E7E5E4] bg-white px-2.5 py-2 text-xs font-medium text-[#1C1917]"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5 text-[#4F46E5]" />
+                  Transfer
+                </button>
 
                 <button
                   type="button"

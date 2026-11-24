@@ -1,9 +1,10 @@
 "use client";
 
 import React from "react";
-import { Pause, Play, Search, Timer } from "lucide-react";
+import { LogOut, Pause, Play, Search, Timer } from "lucide-react";
 import type { PomodoroState, SpaceFilter } from "@/types";
 import { formatSeconds } from "@/lib/utils";
+import { isSupabaseConfigured, signOutSupabase } from "@/lib/supabase/auth";
 
 interface TopBarProps {
   spaceFilter: SpaceFilter;
@@ -139,6 +140,18 @@ export function TopBar({
             Ctrl K
           </kbd>
         </button>
+
+        {isSupabaseConfigured() && (
+          <button
+            type="button"
+            onClick={() => void signOutSupabase()}
+            title="Çıkış Yap"
+            aria-label="Çıkış Yap"
+            className="md:hidden flex h-8 w-8 items-center justify-center rounded-xl border border-[#E7E5E4] bg-white text-[#78716C] hover:text-rose-600 hover:border-rose-200 transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </header>
   );

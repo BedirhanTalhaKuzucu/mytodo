@@ -775,46 +775,165 @@ export function BudgetTable({
               </div>
             )}
             {regularItems.map((tx, rowIdx) => {
-              const acc = accounts.find((a) => a.id === tx.accountId);
+              const isTransferRow = tx.type === "transfer";
+              const acc = accounts.find(
+                (a) => a.id === (isTransferRow ? tx.toAccountId : tx.accountId)
+              );
+              const srcAcc = isTransferRow
+                ? accounts.find((a) => a.id === tx.accountId)
+                : undefined;
               const accName = acc?.name ?? "Hesap";
               const accAsset = acc?.assetType ?? "money";
               const isRecurring = Boolean(tx.recurringRuleId);
+              const outgoingTransfers = transfersByIncomeId[tx.id] ?? [];
+              const outgoingSum = outgoingTransfers.reduce(
+                (s, t) => s + t.amount,
+                0
+              );
+              const isTransferExpanded = Boolean(
+                expandedIncomeTransfers[tx.id]
+              );
+              const baseEff = getEffective(tx);
+              const netAfterTransfer = baseEff - outgoingSum;
+
               return (
-                <div
-                  key={tx.id}
-                  onClick={() => onEdit(tx)}
-                  className={`flex items-center justify-between gap-3 p-3.5 cursor-pointer transition-colors hover:bg-amber-50/50 ${
-                    isRecurring
-                      ? "bg-indigo-50/40"
-                      : rowIdx % 2 === 1
-                      ? "bg-stone-50/75"
-                      : "bg-white"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-medium text-[#1C1917]">
-                        {tx.title}
-                      </span>
-                      {isRecurring && (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-[#4F46E5]">
-                          <Repeat className="h-2.5 w-2.5" />
-                          Sabit
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-xs text-[#78716C]">
-                      {formatShortDate(tx.date)} • {tx.category} • {accName}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 font-mono text-sm font-semibold tabular-nums ${
-                      isExpense ? "text-[#1C1917]" : "text-[#059669]"
+                <div key={tx.id}>
+                  <div
+                    onClick={() => onEdit(tx)}
+                    className={`flex items-start justify-between gap-3 p-3.5 cursor-pointer transition-colors ${
+                      isTransferRow
+                        ? "bg-sky-50/55 hover:bg-sky-50/90"
+                        : isRecurring
+                        ? "bg-indigo-50/40 hover:bg-amber-50/50"
+                        : rowIdx % 2 === 1
+                        ? "bg-stone-50/75 hover:bg-amber-50/50"
+                        : "bg-white hover:bg-amber-50/50"
                     }`}
                   >
-                    {isExpense ? "-" : "+"}
-                    {formatAssetAmount(tx.amount, accAsset)}
-                  </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="truncate text-sm font-medium text-[#1C1917]">
+                          {tx.title}
+                        </span>
+                        {isTransferRow && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-sky-100 border border-sky-200 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800">
+                            <ArrowRightLeft className="h-2.5 w-2.5" />
+                            Transfer Girişi
+                          </span>
+                        )}
+                        {isRecurring && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-indigo-50 border border-indigo-200/70 px-1.5 py-0.5 text-[10px] font-semibold text-[#4F46E5]">
+                            <Repeat className="h-2.5 w-2.5" />
+                            Sabit
+                          </span>
+                        )}
+                        {outgoingTransfers.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedIncomeTransfers((prev) => ({
+                                ...prev,
+                                [tx.id]: !prev[tx.id],
+                              }));
+                            }}
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
+                          >
+                            {isTransferExpanded ? (
+                              <ChevronDown className="h-3 w-3" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" />
+                            )}
+                            −{formatCurrency(outgoingSum)} Transfer
+                          </button>
+                        )}
+                      </div>
+                      {isTransferRow && srcAcc && (
+                        <p className="mt-0.5 text-[11px] text-sky-700">
+                          ← {srcAcc.name} hesabından aktarıldı
+                        </p>
+                      )}
+                      {tx.note && (
+                        <p className="mt-0.5 truncate text-xs text-[#78716C]">
+                          {tx.note}
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-xs text-[#78716C]">
+                        {formatShortDate(tx.date)} • {tx.category} • {accName}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span
+                        className={`block font-mono text-sm font-semibold tabular-nums ${
+                          isTransferRow
+                            ? "text-sky-700"
+                            : isExpense
+                            ? "text-[#1C1917]"
+                            : "text-[#059669]"
+                        }`}
+                      >
+                        {isExpense ? "-" : "+"}
+                        {formatAssetAmount(
+                          outgoingTransfers.length > 0
+                            ? netAfterTransfer
+                            : baseEff,
+                          accAsset
+                        )}
+                      </span>
+                      {outgoingTransfers.length > 0 && (
+                        <span className="block text-[10px] font-mono text-[#78716C] tabular-nums">
+                          Brüt: {formatAssetAmount(baseEff, accAsset)}
+                        </span>
+                      )}
+                      {tx.type === "income" &&
+                        tx.savingsAmount &&
+                        tx.savingsAmount > 0 && (
+                          <span className="inline-block mt-0.5 rounded-md bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                            +{formatCurrency(tx.savingsAmount)} Tasarruf
+                          </span>
+                        )}
+                    </div>
+                  </div>
+
+                  {isTransferExpanded && outgoingTransfers.length > 0 && (
+                    <div className="border-t border-sky-100 bg-sky-50/35 px-3.5 py-2.5">
+                      <div className="rounded-xl border border-sky-200/80 bg-white overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50/60 px-3 py-1.5 text-[11px] font-semibold text-sky-900">
+                          <span>Transfer çıkışları</span>
+                          <span className="font-mono tabular-nums">
+                            Net: {formatCurrency(netAfterTransfer)}
+                          </span>
+                        </div>
+                        <div className="divide-y divide-stone-100">
+                          {outgoingTransfers.map((tr) => {
+                            const toAcc = accounts.find(
+                              (a) => a.id === tr.toAccountId
+                            );
+                            return (
+                              <div
+                                key={tr.id}
+                                onClick={() => onEdit(tr)}
+                                className="flex items-center justify-between gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-sky-50/50"
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <ArrowRightLeft className="h-3 w-3 shrink-0 text-sky-600" />
+                                  <span className="truncate font-medium text-[#1C1917]">
+                                    {tr.title}
+                                  </span>
+                                  <span className="shrink-0 text-[11px] text-[#78716C]">
+                                    → {toAcc?.name ?? "Hesap"}
+                                  </span>
+                                </div>
+                                <span className="shrink-0 font-mono font-semibold text-rose-600 tabular-nums">
+                                  −{formatCurrency(tr.amount)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

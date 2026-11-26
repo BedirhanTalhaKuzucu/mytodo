@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { ArrowRightLeft, Plus, Repeat, Trash2, X } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRightLeft, ChevronDown, Plus, Repeat, Search, Trash2, X } from "lucide-react";
 import type {
   BudgetAccount,
   BudgetTransaction,
@@ -14,12 +14,15 @@ import {
   INCOME_CATEGORIES,
   getTodayISO,
 } from "../utils";
+import { DatePicker } from "../../../components/DatePicker";
 import type { SaveTransactionInput } from "../hooks/useBudgetData";
 
 interface TransactionModalProps {
   accounts: BudgetAccount[];
   expenseCategories?: readonly string[];
   incomeCategories?: readonly string[];
+  monthExpenseCategories?: string[];
+  monthIncomeCategories?: string[];
   monthIncomes?: BudgetTransaction[];
   hasLinkedRecurringRule?: boolean;
   editingTx?: BudgetTransaction | null;
@@ -40,6 +43,8 @@ export function TransactionModal({
   accounts,
   expenseCategories = EXPENSE_CATEGORIES,
   incomeCategories = INCOME_CATEGORIES,
+  monthExpenseCategories = [],
+  monthIncomeCategories = [],
   monthIncomes = [],
   hasLinkedRecurringRule = false,
   editingTx,
@@ -164,8 +169,70 @@ export function TransactionModal({
 
   const categories =
     type === "income" ? incomeCategories : expenseCategories;
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isCatOpen, setIsCatOpen] = useState(false);
+  const [catSearch, setCatSearch] = useState("");
+  const catRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside handler for category dropdown
+  useEffect(() => {
+    if (!isCatOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (catRef.current && !catRef.current.contains(e.target as Node)) {
+        setIsCatOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isCatOpen]);
+
+  // Compute filtered category lists for combobox
+  const { filteredMonthCats, filteredOtherCats, canAddNew } = useMemo(() => {
+    const currentMonthCats =
+      type === "income" ? monthIncomeCategories : monthExpenseCategories;
+    const monthCatSet = new Set(currentMonthCats.map((c) => c.toLocaleLowerCase("tr-TR")));
+    const q = catSearch.toLocaleLowerCase("tr-TR").trim();
+
+    const fMonth = q
+      ? currentMonthCats.filter((c) => c.toLocaleLowerCase("tr-TR").includes(q))
+      : currentMonthCats;
+
+    const otherCats = [...categories].filter(
+      (c) => !monthCatSet.has(c.toLocaleLowerCase("tr-TR"))
+    );
+    const fOther = q
+      ? otherCats.filter((c) => c.toLocaleLowerCase("tr-TR").includes(q))
+      : otherCats;
+
+    const allLower = [...categories].map((c) => c.toLocaleLowerCase("tr-TR"));
+    const addable =
+      q.length > 0 &&
+      !allLower.includes(q) &&
+      Boolean(onAddCategory);
+
+    return { filteredMonthCats: fMonth, filteredOtherCats: fOther, canAddNew: addable };
+  }, [
+    type,
+    catSearch,
+    categories,
+    monthExpenseCategories,
+    monthIncomeCategories,
+    onAddCategory,
+  ]);
+
+  const handleSelectCategory = (cat: string) => {
+    setCategory(cat);
+    setIsCatOpen(false);
+    setCatSearch("");
+  };
+
+  const handleAddNewCategory = (name: string) => {
+    if (onAddCategory && (type === "expense" || type === "income")) {
+      const created = onAddCategory(type, name);
+      if (created) setCategory(created);
+    }
+    setCatSearch("");
+    setIsCatOpen(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/35 sm:px-4 backdrop-blur-[2px]">
@@ -389,70 +456,141 @@ export function TransactionModal({
                 ))}
               </select>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#78716C]">
-                  Kategori
-                </label>
-                {onAddCategory && (type === "expense" || type === "income") && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingCategory((v) => !v)}
-                    className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-700 hover:text-amber-800 cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Yeni
-                  </button>
-                )}
-              </div>
-              {isAddingCategory ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="Kategori adı..."
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        if (newCategoryName.trim() && onAddCategory && (type === "expense" || type === "income")) {
-                          const created = onAddCategory(type, newCategoryName);
-                          if (created) setCategory(created);
-                          setNewCategoryName("");
-                          setIsAddingCategory(false);
+            <div className="relative" ref={catRef}>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#78716C] mb-1">
+                Kategori
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCatOpen((v) => !v);
+                  setCatSearch("");
+                }}
+                className={`w-full flex items-center justify-between rounded-xl border bg-white px-3 py-2 text-xs font-medium text-[#1C1917] transition-colors ${
+                  isCatOpen
+                    ? "border-indigo-300 ring-2 ring-indigo-100"
+                    : "border-[#E7E5E4] hover:border-stone-300"
+                }`}
+              >
+                <span className="truncate">{category}</span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 text-[#78716C] transition-transform ${
+                    isCatOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {isCatOpen && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-[#E7E5E4] bg-white shadow-lg max-h-60 overflow-hidden flex flex-col">
+                  {/* Search input */}
+                  <div className="flex items-center gap-2 border-b border-[#E7E5E4] px-3 py-2 shrink-0">
+                    <Search className="h-3.5 w-3.5 text-[#78716C] shrink-0" />
+                    <input
+                      type="text"
+                      value={catSearch}
+                      onChange={(e) => setCatSearch(e.target.value)}
+                      placeholder="Kategori ara..."
+                      autoFocus
+                      className="w-full text-xs text-[#1C1917] outline-none bg-transparent placeholder:text-[#A8A29E]"
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setIsCatOpen(false);
+                        } else if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (
+                            filteredMonthCats.length === 1 &&
+                            filteredOtherCats.length === 0
+                          ) {
+                            handleSelectCategory(filteredMonthCats[0]);
+                          } else if (
+                            filteredOtherCats.length === 1 &&
+                            filteredMonthCats.length === 0
+                          ) {
+                            handleSelectCategory(filteredOtherCats[0]);
+                          } else if (canAddNew) {
+                            handleAddNewCategory(catSearch.trim());
+                          }
                         }
-                      }
-                    }}
-                    className="w-full rounded-xl border border-[#E7E5E4] bg-white px-2.5 py-2 text-xs text-[#1C1917] focus:border-amber-500 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newCategoryName.trim() && onAddCategory && (type === "expense" || type === "income")) {
-                        const created = onAddCategory(type, newCategoryName);
-                        if (created) setCategory(created);
-                        setNewCategoryName("");
-                        setIsAddingCategory(false);
-                      }
-                    }}
-                    className="shrink-0 rounded-xl bg-amber-600 px-2.5 py-2 text-xs font-semibold text-white hover:bg-amber-700 cursor-pointer"
-                  >
-                    Ekle
-                  </button>
+                      }}
+                    />
+                  </div>
+
+                  {/* Category list */}
+                  <div className="overflow-y-auto flex-1">
+                    {/* Bu Ay section */}
+                    {filteredMonthCats.length > 0 && (
+                      <div>
+                        <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#78716C] bg-stone-50/60">
+                          Bu Ay ({filteredMonthCats.length})
+                        </div>
+                        {filteredMonthCats.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => handleSelectCategory(cat)}
+                            className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer ${
+                              category === cat
+                                ? "bg-indigo-50 text-[#4F46E5] font-semibold"
+                                : "text-[#1C1917] hover:bg-stone-50"
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Diğer Kategoriler section */}
+                    {filteredOtherCats.length > 0 && (
+                      <div>
+                        <div
+                          className={`px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#78716C] bg-stone-50/60 ${
+                            filteredMonthCats.length > 0
+                              ? "border-t border-[#E7E5E4]"
+                              : ""
+                          }`}
+                        >
+                          Diğer Kategoriler ({filteredOtherCats.length})
+                        </div>
+                        {filteredOtherCats.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => handleSelectCategory(cat)}
+                            className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer ${
+                              category === cat
+                                ? "bg-indigo-50 text-[#4F46E5] font-semibold"
+                                : "text-[#1C1917] hover:bg-stone-50"
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Yeni kategori ekle option */}
+                    {canAddNew && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddNewCategory(catSearch.trim())}
+                        className="w-full text-left px-3 py-2.5 text-xs font-medium text-amber-700 hover:bg-amber-50 border-t border-[#E7E5E4] flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        &ldquo;{catSearch.trim()}&rdquo; kategorisini ekle
+                      </button>
+                    )}
+
+                    {/* Empty state */}
+                    {filteredMonthCats.length === 0 &&
+                      filteredOtherCats.length === 0 &&
+                      !canAddNew && (
+                        <div className="px-3 py-4 text-center text-xs text-[#78716C]">
+                          Kategori bulunamadı
+                        </div>
+                      )}
+                  </div>
                 </div>
-              ) : (
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-xl border border-[#E7E5E4] bg-white px-3 py-2 text-xs font-medium text-[#1C1917]"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
               )}
             </div>
           </div>
@@ -476,12 +614,10 @@ export function TransactionModal({
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#78716C] mb-1">
               Tarih
             </label>
-            <input
-              type="date"
-              required
+            <DatePicker
               value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-xl border border-[#E7E5E4] bg-white px-3 py-2 text-xs text-[#1C1917]"
+              onChange={setDate}
+              required
             />
           </div>
           <div>

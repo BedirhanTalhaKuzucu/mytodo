@@ -140,6 +140,22 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
     [monthTransactions]
   );
 
+  const monthExpenseCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const tx of expenseTransactions) {
+      if (tx.category) cats.add(tx.category);
+    }
+    return Array.from(cats).sort((a, b) => a.localeCompare(b, "tr"));
+  }, [expenseTransactions]);
+
+  const monthIncomeCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const tx of incomeTransactions) {
+      if (tx.category) cats.add(tx.category);
+    }
+    return Array.from(cats).sort((a, b) => a.localeCompare(b, "tr"));
+  }, [incomeTransactions]);
+
   const pendingExpenseRecurringCount = useMemo(
     () =>
       recurringRules.filter(
@@ -889,6 +905,8 @@ export function BudgetModule({ onExitBudget }: BudgetModuleProps) {
           accounts={accounts}
           expenseCategories={expenseCategories}
           incomeCategories={incomeCategories}
+          monthExpenseCategories={monthExpenseCategories}
+          monthIncomeCategories={monthIncomeCategories}
           monthIncomes={incomeTransactions}
           hasLinkedRecurringRule={Boolean(
             txModalState.editingTx?.recurringRuleId &&

@@ -39,6 +39,7 @@ import {
   getTodayISO,
   getTomorrowISO,
 } from "@/lib/utils";
+import { DatePicker } from "./DatePicker";
 import { PriorityBadge, SpaceBadge } from "./SpaceBadge";
 
 interface DetailDrawerProps {
@@ -481,15 +482,15 @@ export function DetailDrawer({
                         >
                           Yarın
                         </button>
-                        <input
-                          type="date"
+                        <DatePicker
                           value={task.dueDate ?? ""}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             onUpdateTask(task.id, {
-                              dueDate: e.target.value || null,
+                              dueDate: v || null,
                             })
                           }
-                          className="rounded-lg border border-[#E7E5E4] bg-white px-2 py-1 text-xs text-[#1C1917] focus:outline-none"
+                          placeholder="Tarih"
+                          className="!rounded-lg !px-2 !py-1"
                         />
                       </div>
                     </div>
